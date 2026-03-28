@@ -7,6 +7,7 @@ const App = {
     
     init() {
         this.setupNavigation();
+        this.setupEditorTabs();
         this.loadData();
         ThemeManager.init();
         this.checkStatus();
@@ -19,6 +20,73 @@ const App = {
                 this.switchView(view);
             });
         });
+    },
+    
+    setupEditorTabs() {
+        document.querySelectorAll('.editor-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                this.switchEditorTab(tabName);
+            });
+        });
+    },
+    
+    switchEditorTab(tabName) {
+        document.querySelectorAll('.editor-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tabName);
+        });
+        
+        const content = document.getElementById('chapter-content');
+        const preview = document.getElementById('chapter-preview');
+        const outline = document.getElementById('chapter-outline');
+        
+        content.style.display = tabName === 'write' ? 'block' : 'none';
+        preview.style.display = tabName === 'preview' ? 'block' : 'none';
+        outline.style.display = tabName === 'outline' ? 'block' : 'none';
+        
+        if (tabName === 'preview') {
+            this.updatePreview();
+        } else if (tabName === 'outline') {
+            this.updateOutline();
+        }
+    },
+    
+    updatePreview() {
+        const content = document.getElementById('chapter-content')?.value || '';
+        const preview = document.getElementById('chapter-preview');
+        if (preview) {
+            preview.innerHTML = this.formatPreview(content);
+        }
+    },
+    
+    formatPreview(content) {
+        if (!content) return '<p style="color:var(--text-secondary);">暂无内容</p>';
+        return content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    },
+    
+    updateOutline() {
+        const content = document.getElementById('chapter-content')?.value || '';
+        const outline = document.getElementById('chapter-outline');
+        if (outline) {
+            outline.innerHTML = this.generateOutline(content);
+        }
+    },
+    
+    generateOutline(content) {
+        if (!content) return '<p style="color:var(--text-secondary);">暂无内容</p>';
+        
+        const lines = content.split('\n').filter(l => l.trim());
+        if (lines.length === 0) return '<p style="color:var(--text-secondary);">暂无内容</p>';
+        
+        let html = '<h4>章节大纲</h4>';
+        
+        const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 50);
+        paragraphs.forEach((p, i) => {
+            const preview = p.substring(0, 80).trim();
+            html += `<div class="outline-item"><strong>段落 ${i + 1}:</strong> ${preview}...</div>`;
+        });
+        
+        return html;
     },
     
     switchView(viewName) {

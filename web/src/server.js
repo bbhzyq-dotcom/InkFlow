@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 8000;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.static(join(__dirname, '../static')));
+app.use('/static', express.static(join(__dirname, '../static')));
 
 const DATA_DIR = join(__dirname, '../data');
 if (!existsSync(DATA_DIR)) {
@@ -75,7 +75,7 @@ function recreateInkOSEngine() {
 }
 
 app.get('/', (req, res) => {
-    res.sendFile(join(__dirname, '../templates/index.html'));
+    res.sendFile(join(__dirname, '../static/index.html'));
 });
 
 app.get('/api/novels', (req, res) => {

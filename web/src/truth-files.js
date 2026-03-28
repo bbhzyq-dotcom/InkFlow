@@ -8,7 +8,7 @@ const __dirname = dirname(__filename);
 export class TruthFiles {
     constructor(novelId, projectPath = null) {
         this.novelId = novelId;
-        this.projectPath = projectPath || join(__dirname, '../../data/projects', novelId);
+        this.projectPath = projectPath || join(process.cwd(), 'web', 'data', 'projects', novelId);
         this.stateDir = join(this.projectPath, 'story', 'state');
     }
 

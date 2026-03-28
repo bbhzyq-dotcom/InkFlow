@@ -82,6 +82,11 @@ app.post('/api/novels', (req, res) => {
         return res.status(400).json({ error: '标题不能为空' });
     }
 
+    const PROJECTS_DIR = join(DATA_DIR, 'projects');
+    if (!existsSync(PROJECTS_DIR)) {
+        mkdirSync(PROJECTS_DIR, { recursive: true });
+    }
+
     const novels = loadJSON(NOVELS_FILE, []);
     const id = generateId();
 
@@ -94,6 +99,7 @@ app.post('/api/novels', (req, res) => {
         chapterCount: 0,
         wordCount: 0,
         chapters: [],
+        projectPath: join(PROJECTS_DIR, id),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };

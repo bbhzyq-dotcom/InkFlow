@@ -36,7 +36,7 @@
 }
 
 .writing-progress-content {
-    background: white;
+    background: var(--card-bg, var(--background-color));
     border-radius: 16px;
     padding: 32px;
     max-width: 500px;
@@ -107,7 +107,7 @@
 .editor-main {
     display: flex;
     flex-direction: column;
-    background: white;
+    background: var(--card-bg, var(--background-color));
     border-radius: 12px;
     border: 1px solid var(--border-color);
     overflow: hidden;
@@ -175,7 +175,7 @@
 }
 
 .sidebar-panel {
-    background: white;
+    background: var(--card-bg, var(--background-color));
     border-radius: 12px;
     border: 1px solid var(--border-color);
     overflow: hidden;

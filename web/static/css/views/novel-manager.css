@@ -33,7 +33,7 @@
     border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
-    background: white;
+    background: var(--input-bg, var(--background-color));
 }
 
 .search-box::before {
@@ -54,7 +54,7 @@
     padding: 10px 16px;
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--card-bg, var(--background-color));
     color: var(--text-secondary);
     font-size: 13px;
     cursor: pointer;
@@ -65,7 +65,7 @@
 .filter-btn.active {
     border-color: var(--primary-color);
     color: var(--primary-color);
-    background: #eef2ff;
+    background: rgba(99, 102, 241, 0.1);
 }
 
 .novel-grid {
@@ -75,7 +75,7 @@
 }
 
 .novel-card {
-    background: white;
+    background: var(--card-bg, var(--background-color));
     border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;

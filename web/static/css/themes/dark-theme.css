@@ -192,3 +192,102 @@
 [data-theme="dark"] .progress-text {
     color: var(--text-secondary);
 }
+
+[data-theme="dark"] .stat-card {
+    background: var(--card-bg);
+}
+
+[data-theme="dark"] .stat-card-value {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .stat-card-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .stat-card-icon.primary {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+[data-theme="dark"] .stat-card-icon.success {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+[data-theme="dark"] .stat-card-icon.warning {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+[data-theme="dark"] .stat-card-icon.info {
+    background: rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .filter-btn {
+    color: var(--text-secondary);
+    background: transparent;
+}
+
+[data-theme="dark"] .filter-btn:hover {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .editor-content {
+    background: var(--background-color);
+}
+
+[data-theme="dark"] .editor-textarea {
+    color: var(--text-primary);
+    background: transparent;
+}
+
+[data-theme="dark"] .editor-preview {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .sidebar-panel {
+    background: var(--card-bg);
+}
+
+[data-theme="dark"] .panel-body {
+    background: var(--card-bg);
+}
+
+[data-theme="dark"] .chapter-item {
+    background: transparent;
+}
+
+[data-theme="dark"] .chapter-item:hover {
+    background: var(--sidebar-item-hover);
+}
+
+[data-theme="dark"] .novel-manager {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .novel-item {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .novel-item:hover {
+    border-color: var(--primary-color);
+}
+
+[data-theme="dark"] .novel-title {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .novel-meta {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .empty-state {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .page-header {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .section-title {
+    color: var(--text-primary);
+}

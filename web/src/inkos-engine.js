@@ -277,7 +277,7 @@ class PipelineRunner {
     }
 
     async run() {
-        const { title, genre, targetWords, lastContent, style } = this.options;
+        const { title, genre, targetWords, lastContent, style, authorIntent, storyBible, bookRules, chapterFocus } = this.options;
 
         try {
             this.log('=== InkOS 多Agent写作管线启动 ===');
@@ -298,10 +298,19 @@ class PipelineRunner {
                 issues: [],
                 fixedIssues: []
             };
+            
+            state.authorIntent = authorIntent || '';
+            state.storyBible = storyBible || '';
+            state.bookRules = bookRules || '';
+            state.chapterFocus = chapterFocus || '';
 
             if (this.truthFiles) {
                 state.truth = this.truthFiles.loadTruthFiles();
                 this.log('已加载真相文件');
+            }
+
+            if (authorIntent || storyBible || bookRules) {
+                this.log('已加载控制面文档');
             }
 
             this.log('--- [1/10] Radar: 扫描趋势 ---');
@@ -495,6 +504,7 @@ class PlannerAgent {
         let worldSetting = '';
         let characterList = [];
         let plotOutline = '';
+        let authorIntent = '';
         
         if (truth?.currentState) {
             worldSetting = truth.currentState.worldSetting || '';
@@ -508,12 +518,25 @@ class PlannerAgent {
         if (truth?.chapterSummaries?.plotOutline && !plotOutline) {
             plotOutline = truth.chapterSummaries.plotOutline;
         }
+        
+        if (state.storyBible) {
+            worldSetting = state.storyBible;
+        }
+        
+        if (state.authorIntent) {
+            authorIntent = state.authorIntent;
+        }
+        
+        if (state.chapterFocus) {
+            plotOutline = (plotOutline ? plotOutline + '\n\n' : '') + `【本章重点】${state.chapterFocus}`;
+        }
 
         return {
             ...baseGoal,
             worldSetting,
             characterList,
             plotOutline,
+            authorIntent,
             customMustKeep: baseGoal.mustKeep,
             customMustAvoid: baseGoal.mustAvoid
         };
@@ -667,6 +690,11 @@ class WriterAgent {
         if (plannerResult?.plotOutline) {
             plotInfo = `\n主线剧情：\n${plannerResult.plotOutline}`;
         }
+        
+        let authorIntentInfo = '';
+        if (plannerResult?.authorIntent) {
+            authorIntentInfo = `\n\n【作者长期意图】\n${plannerResult.authorIntent}`;
+        }
 
         const systemPrompt = `你是 InkOS 写作 Agent，专注于创作高质量网络小说。
 
@@ -678,6 +706,7 @@ class WriterAgent {
 ${worldSettingInfo}
 ${characterInfo}
 ${plotInfo}
+${authorIntentInfo}
 
 本章意图：
 - 目标: ${plannerResult?.goal || '推进剧情'}

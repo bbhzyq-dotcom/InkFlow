@@ -552,6 +552,10 @@ app.post('/api/novels/:id/write', async (req, res) => {
             writeFileSync(join(novel.projectPath, 'story', 'current_focus.md'), newFocus, 'utf-8');
         }
         
+        const authorIntent = readFileSafe(join(novel.projectPath, 'story', 'author_intent.md'), '');
+        const storyBible = readFileSafe(join(novel.projectPath, 'story', 'story_bible.md'), '');
+        const bookRules = readFileSafe(join(novel.projectPath, 'story', 'book_rules.md'), '');
+        
         const result = await engine.write({
             title: novel.title,
             genre: novel.genre || 'xuanhuan',
@@ -561,6 +565,9 @@ app.post('/api/novels/:id/write', async (req, res) => {
             chapterNum,
             chapterFocus,
             truthFiles,
+            authorIntent,
+            storyBible,
+            bookRules,
             onProgress: (msg) => progressLog.push(msg)
         });
 
@@ -649,9 +656,11 @@ app.post('/api/novels/:id/partial-rewrite', async (req, res) => {
     try {
         const engine = getInkOSEngine();
         const settings = loadJSON(SETTINGS_FILE, {});
+        const customModels = settings.customModels || [];
+        const hasModel = customModels.length > 0 || settings.selectedModelConfig;
 
         let newContent;
-        if (settings.apiKey || process.env.OPENAI_API_KEY) {
+        if (hasModel) {
             progressLog.push('调用 AI 重写...');
             const result = await engine.partialRewrite({
                 beforeContext: beforePart,

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node src/server.js",
+    "dev": "python3 scripts/build-templates.py && node src/server.js",
+    "build": "python3 scripts/build-templates.py",
     "start": "node src/server.js"
   },
   "dependencies": {

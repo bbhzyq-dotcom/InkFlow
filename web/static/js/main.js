@@ -378,13 +378,32 @@ const App = {
         const settings = {
             aiProvider: document.getElementById('ai-provider')?.value || 'openai',
             apiKey: document.getElementById('api-key')?.value || '',
+            baseURL: document.getElementById('base-url')?.value || 'https://api.openai.com/v1',
             aiModel: document.getElementById('ai-model')?.value || 'gpt-4o',
             defaultGenre: document.getElementById('default-genre')?.value || 'xuanhuan',
-            theme: document.getElementById('theme-select')?.value || 'light'
+            theme: document.getElementById('theme-select')?.value || 'light',
+            modelRouting: {
+                writer: {
+                    model: document.getElementById('model-writer')?.value || null
+                },
+                auditor: {
+                    model: document.getElementById('model-auditor')?.value || null
+                },
+                architect: {
+                    model: document.getElementById('model-architect')?.value || null
+                }
+            }
         };
         
         localStorage.setItem('inkflow-settings', JSON.stringify(settings));
-        alert('设置已保存');
+        
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        }).then(res => res.json())
+          .then(() => alert('设置已保存'))
+          .catch(err => alert('保存失败: ' + err.message));
     },
     
     formatNumber(num) {

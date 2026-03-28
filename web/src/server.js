@@ -686,6 +686,72 @@ app.post('/api/novels/:id/detect-aigc', (req, res) => {
     res.json(result);
 });
 
+const BUILTIN_MODELS = [
+    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
+    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', baseURL: 'https://api.anthropic.com' },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'Anthropic', baseURL: 'https://api.anthropic.com' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek', baseURL: 'https://api.deepseek.com' },
+    { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', provider: 'Moonshot', baseURL: 'https://api.moonshot.cn/v1' }
+];
+
+app.get('/api/models', (req, res) => {
+    const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
+    const models = [...BUILTIN_MODELS, ...customModels];
+    res.json(models);
+});
+
+app.post('/api/models', (req, res) => {
+    const { name, provider, baseURL, apiKey, modelId } = req.body;
+    
+    if (!name || !provider || !baseURL || !apiKey || !modelId) {
+        return res.status(400).json({ error: '缺少必要参数' });
+    }
+    
+    const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
+    
+    const newModel = {
+        id: modelId,
+        name: name,
+        provider: provider,
+        baseURL: baseURL,
+        apiKey: apiKey,
+        isCustom: true
+    };
+    
+    const existingIdx = customModels.findIndex(m => m.id === modelId);
+    if (existingIdx >= 0) {
+        customModels[existingIdx] = newModel;
+    } else {
+        customModels.push(newModel);
+    }
+    
+    settings.customModels = customModels;
+    saveJSON(SETTINGS_FILE, settings);
+    
+    res.json(newModel);
+});
+
+app.delete('/api/models/:id', (req, res) => {
+    const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
+    const modelId = decodeURIComponent(req.params.id);
+    
+    const filtered = customModels.filter(m => m.id !== modelId);
+    
+    if (filtered.length === customModels.length) {
+        return res.status(404).json({ error: '模型不存在' });
+    }
+    
+    settings.customModels = filtered;
+    saveJSON(SETTINGS_FILE, settings);
+    
+    res.json({ success: true });
+});
+
 app.get('/api/settings', (req, res) => {
     const settings = loadJSON(SETTINGS_FILE, {
         aiProvider: 'openai',
@@ -694,13 +760,21 @@ app.get('/api/settings', (req, res) => {
         baseURL: 'https://api.openai.com/v1',
         defaultGenre: 'xuanhuan',
         theme: 'light',
-        models: {}
+        customModels: [],
+        modelRouting: {}
     });
+    const allModels = [...BUILTIN_MODELS, ...(settings.customModels || [])];
+    settings.availableModels = allModels;
     res.json(settings);
 });
 
 app.post('/api/settings', (req, res) => {
-    saveJSON(SETTINGS_FILE, req.body);
+    const currentSettings = loadJSON(SETTINGS_FILE, {});
+    const newSettings = req.body;
+    if (currentSettings.customModels) {
+        newSettings.customModels = currentSettings.customModels;
+    }
+    saveJSON(SETTINGS_FILE, newSettings);
     recreateInkOSEngine();
     res.json({ success: true });
 });

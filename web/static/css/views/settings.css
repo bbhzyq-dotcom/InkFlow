@@ -1,0 +1,93 @@
+#settings-view .card {
+    margin-bottom: 20px;
+}
+
+.model-list {
+    margin-top: 16px;
+}
+
+.model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--background-color);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.model-item:hover {
+    border-color: var(--primary-color);
+}
+
+.model-info {
+    flex: 1;
+}
+
+.model-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.model-platform {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.model-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-delete {
+    background: transparent;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.btn-delete:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.add-model-form {
+    background: var(--background-color);
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 16px;
+    border: 1px dashed var(--border-color);
+}
+
+.add-model-form h4 {
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.add-model-form .input-group {
+    margin-bottom: 12px;
+}
+
+.add-model-form .btn {
+    margin-top: 8px;
+}
+
+select.has-custom {
+    background-color: #f0f9ff;
+}

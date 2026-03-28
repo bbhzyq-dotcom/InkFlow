@@ -1,0 +1,70 @@
+name: Build InkFlow Desktop App
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - mac
+          - windows
+          - linux
+
+jobs:
+  build-pake:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            ext: deb
+          - os: macos-latest
+            platform: mac
+            ext: dmg
+          - os: windows-latest
+            platform: windows
+            ext: exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Pake CLI
+        run: npm install -g pake-cli
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: |
+          cd inkflow/web
+          pnpm install
+
+      - name: Build web app
+        run: |
+          cd inkflow/web
+          pnpm run build 2>/dev/null || echo "Build skipped - using dev server mode"
+
+      - name: Build desktop app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkflow-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**

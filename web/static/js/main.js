@@ -629,7 +629,8 @@ App.cascadeUpdate = async function() {
         const result = await response.json();
         
         if (result.success) {
-            alert(`级联更新完成！\n\n更新范围：第 ${result.updatedFromChapter} 章起\n新增伏笔：${result.updates.newHooks} 个\n更新摘要：${result.updates.updatedSummaries} 个`);
+            const summary = result.summary || {};
+            alert(`级联更新完成！\n\n更新范围：第 ${result.updatedFromChapter} 章起\n活跃伏笔：${summary.activeHooks || 0} 个\n跟踪章节：${summary.chaptersTracked || 0} 个`);
             this.loadTruthFiles();
         } else {
             throw new Error(result.error || '更新失败');

@@ -849,11 +849,12 @@ app.get('/api/model-config/:id', (req, res) => {
 
 app.get('/api/status', (req, res) => {
     const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
     res.json({
         status: 'running',
         version: '1.0.0',
-        aiConfigured: !!(settings.apiKey || process.env.OPENAI_API_KEY),
-        model: settings.aiModel || 'gpt-4o',
+        aiConfigured: customModels.length > 0 || !!(settings.selectedModelConfig),
+        model: settings.aiModel || '',
         features: {
             multiModel: true,
             daemon: true,

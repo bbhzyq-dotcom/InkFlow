@@ -29,17 +29,17 @@
         </div>
         
         <div class="quick-actions">
-            <button class="quick-action-btn" id="action-new-novel">
+            <button class="quick-action-btn" id="action-new-novel" onclick="App.showCreateNovelModal()">
                 <div class="quick-action-icon">📖</div>
                 <div class="quick-action-title">创建新小说</div>
                 <div class="quick-action-desc">开始一个新的创作项目</div>
             </button>
-            <button class="quick-action-btn" id="action-continue">
+            <button class="quick-action-btn" id="action-continue" onclick="App.continueLastWriting()">
                 <div class="quick-action-icon">▶️</div>
                 <div class="quick-action-title">继续写作</div>
                 <div class="quick-action-desc">从上次停止的地方继续</div>
             </button>
-            <button class="quick-action-btn" id="action-import">
+            <button class="quick-action-btn" id="action-import" onclick="App.showImportModal()">
                 <div class="quick-action-icon">📥</div>
                 <div class="quick-action-title">导入作品</div>
                 <div class="quick-action-desc">从已有文本续写</div>

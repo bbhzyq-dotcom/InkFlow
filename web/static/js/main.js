@@ -165,6 +165,49 @@ const App = {
         }
     },
     
+    continueLastWriting() {
+        if (this.novels.length === 0) {
+            alert('暂无小说，请先创建一本小说');
+            return;
+        }
+        const lastNovel = this.novels[this.novels.length - 1];
+        this.openNovel(lastNovel.id);
+    },
+    
+    showImportModal() {
+        const content = prompt('请粘贴要导入的文本内容：');
+        if (!content) return;
+        
+        const title = prompt('请输入小说标题：');
+        if (!title) return;
+        
+        const genre = prompt('请输入小说类型（xuanhuan/xianxia/urban/sci-fi/horror/romance/litpg/other，默认：xuanhuan）：') || 'xuanhuan';
+        
+        this.createNovelWithImport({ title, genre, content });
+    },
+    
+    async createNovelWithImport(data) {
+        try {
+            const novel = await ApiClient.novels.create({ title: data.title, genre: data.genre });
+            
+            const response = await fetch(`/api/novels/${novel.id}/import`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: data.content })
+            });
+            
+            const result = await response.json();
+            
+            this.novels.push(novel);
+            this.renderDashboard();
+            this.renderNovels();
+            
+            alert(`导入成功！\n小说「${novel.title}」\n导入章节：${result.imported || 0} 个`);
+        } catch (error) {
+            alert('导入失败：' + error.message);
+        }
+    },
+    
     async openNovel(novelId) {
         try {
             this.currentNovel = await ApiClient.novels.get(novelId);
@@ -212,6 +255,7 @@ const App = {
             document.getElementById('current-chapter-words').textContent = this.formatNumber(chapter.wordCount || 0);
             this.updateWordCount();
             this.renderChapterList();
+            this.loadTruthFiles();
             
             document.getElementById('editor-novel-title').textContent = 
                 `${this.currentNovel.title} - ${chapter.title || '第' + chapter.number + '章'}`;

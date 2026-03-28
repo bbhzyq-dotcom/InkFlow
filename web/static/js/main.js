@@ -145,12 +145,37 @@ const App = {
     },
     
     showCreateNovelModal() {
-        const title = prompt('请输入小说标题：');
-        if (!title) return;
+        document.getElementById('create-novel-modal').style.display = 'flex';
+        document.getElementById('new-novel-title').focus();
+    },
+    
+    closeCreateNovelModal() {
+        document.getElementById('create-novel-modal').style.display = 'none';
+        document.getElementById('new-novel-title').value = '';
+        document.getElementById('new-novel-genre').value = 'xuanhuan';
+        document.getElementById('new-novel-description').value = '';
+    },
+    
+    async createNovelFromModal() {
+        const title = document.getElementById('new-novel-title').value.trim();
+        if (!title) {
+            alert('请输入小说标题');
+            return;
+        }
         
-        const genre = prompt('请输入小说类型（xuanhuan/xianxia/urban/sci-fi/horror/other，默认：xuanhuan）：') || 'xuanhuan';
+        const genre = document.getElementById('new-novel-genre').value;
+        const description = document.getElementById('new-novel-description').value.trim();
         
-        this.createNovel({ title, genre });
+        try {
+            const novel = await ApiClient.novels.create({ title, genre, description });
+            this.novels.push(novel);
+            this.renderDashboard();
+            this.renderNovels();
+            this.closeCreateNovelModal();
+            alert(`小说「${novel.title}」创建成功！`);
+        } catch (error) {
+            alert('创建失败：' + error.message);
+        }
     },
     
     async createNovel(data) {
@@ -380,23 +405,43 @@ const App = {
         }
     },
     
-    addChapter() {
+    showAddChapterModal() {
+        if (!this.currentNovel) {
+            alert('请先选择一本小说');
+            return;
+        }
+        document.getElementById('add-chapter-modal').style.display = 'flex';
+        document.getElementById('new-chapter-title').focus();
+    },
+    
+    closeAddChapterModal() {
+        document.getElementById('add-chapter-modal').style.display = 'none';
+        document.getElementById('new-chapter-title').value = '';
+    },
+    
+    async addChapterFromModal() {
         if (!this.currentNovel) {
             alert('请先选择一本小说');
             return;
         }
         
-        const title = prompt('请输入章节标题（留空自动生成）：');
+        const title = document.getElementById('new-chapter-title').value.trim();
         
-        ApiClient.chapters.create(this.currentNovel.id, { title: title || '' })
-            .then(chapter => {
-                if (!this.currentNovel.chapters) this.currentNovel.chapters = [];
-                this.currentNovel.chapters.push(chapter);
-                this.currentNovel.chapterCount = this.currentNovel.chapters.length;
-                this.renderChapterList();
-                this.openChapter(chapter.id);
-            })
-            .catch(error => alert('创建失败：' + error.message));
+        try {
+            const chapter = await ApiClient.chapters.create(this.currentNovel.id, { title: title || '' });
+            if (!this.currentNovel.chapters) this.currentNovel.chapters = [];
+            this.currentNovel.chapters.push(chapter);
+            this.currentNovel.chapterCount = this.currentNovel.chapters.length;
+            this.renderChapterList();
+            this.openChapter(chapter.id);
+            this.closeAddChapterModal();
+        } catch (error) {
+            alert('创建失败：' + error.message);
+        }
+    },
+    
+    addChapter() {
+        this.showAddChapterModal();
     },
     
     async deleteNovel(novelId) {

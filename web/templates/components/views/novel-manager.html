@@ -29,3 +29,82 @@
         </div>
     </div>
 </div>
+
+<div id="create-novel-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card">
+        <div class="modal-header">
+            <h3>新建小说</h3>
+            <button class="btn-close" onclick="App.closeCreateNovelModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="input-group">
+                <label>小说标题</label>
+                <input type="text" id="new-novel-title" placeholder="输入小说标题">
+            </div>
+            <div class="input-group">
+                <label>小说类型</label>
+                <select id="new-novel-genre">
+                    <option value="xuanhuan">玄幻</option>
+                    <option value="xianxia">仙侠</option>
+                    <option value="urban">都市</option>
+                    <option value="sci-fi">科幻</option>
+                    <option value="horror">恐怖</option>
+                    <option value="romance">言情</option>
+                    <option value="litpg">游戏</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>简介（可选）</label>
+                <textarea id="new-novel-description" placeholder="简述小说内容" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="App.closeCreateNovelModal()">取消</button>
+            <button class="btn btn-primary" onclick="App.createNovelFromModal()">创建</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-content {
+    width: 90%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.modal-header h3 {
+    margin: 0;
+}
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+</style>

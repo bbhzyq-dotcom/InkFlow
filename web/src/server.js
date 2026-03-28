@@ -3,8 +3,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { spawn } from 'child_process';
-import { createInterface } from 'readline';
+import { InkOSEngine } from './inkos-engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,11 +22,6 @@ if (!existsSync(DATA_DIR)) {
 
 const NOVELS_FILE = join(DATA_DIR, 'novels.json');
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
-const PROJECTS_DIR = join(DATA_DIR, 'projects');
-
-if (!existsSync(PROJECTS_DIR)) {
-    mkdirSync(PROJECTS_DIR, { recursive: true });
-}
 
 function loadJSON(file, defaultValue = []) {
     if (existsSync(file)) {
@@ -48,60 +42,18 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-function createProjectStructure(novelId, title, genre) {
-    const projectPath = join(PROJECTS_DIR, novelId);
-    mkdirSync(projectPath, { recursive: true });
-    mkdirSync(join(projectPath, 'chapters'), { recursive: true });
-    mkdirSync(join(projectPath, 'story'), { recursive: true });
+let inkosEngine = null;
 
-    const inkosConfig = {
-        title,
-        genre,
-        author: 'InkFlow User',
-        createdAt: new Date().toISOString()
-    };
-
-    writeFileSync(join(projectPath, 'inkos.json'), JSON.stringify(inkosConfig, null, 2), 'utf-8');
-    writeFileSync(join(projectPath, 'story', 'author_intent.md'), `# ${title}\n\n作者意图...`, 'utf-8');
-    writeFileSync(join(projectPath, 'story', 'current_focus.md'), '当前创作焦点...', 'utf-8');
-    writeFileSync(join(projectPath, 'story_bible.md'), `# 世界观设定\n\n${title}的世界观...`, 'utf-8');
-    writeFileSync(join(projectPath, 'book_rules.md'), '# 书籍规则\n\n主角设定...', 'utf-8');
-
-    return projectPath;
-}
-
-async function execCommand(command, args, options = {}) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn(command, args, {
-            cwd: options.cwd || process.cwd(),
-            shell: true,
-            env: { ...process.env }
+function getInkOSEngine() {
+    if (!inkosEngine) {
+        const settings = loadJSON(SETTINGS_FILE, {});
+        inkosEngine = new InkOSEngine({
+            apiKey: settings.apiKey || process.env.OPENAI_API_KEY || '',
+            model: settings.aiModel || 'gpt-4o',
+            baseURL: settings.baseURL || 'https://api.openai.com/v1'
         });
-
-        let stdout = '';
-        let stderr = '';
-
-        proc.stdout.on('data', (data) => {
-            stdout += data.toString();
-            if (options.onProgress) {
-                options.onProgress(data.toString());
-            }
-        });
-
-        proc.stderr.on('data', (data) => {
-            stderr += data.toString();
-        });
-
-        proc.on('close', (code) => {
-            if (code === 0) {
-                resolve(stdout);
-            } else {
-                reject(new Error(stderr || `Command failed with code ${code}`));
-            }
-        });
-
-        proc.on('error', reject);
-    });
+    }
+    return inkosEngine;
 }
 
 app.get('/', (req, res) => {
@@ -131,8 +83,6 @@ app.post('/api/novels', (req, res) => {
 
     const novels = loadJSON(NOVELS_FILE, []);
     const id = generateId();
-    
-    const projectPath = createProjectStructure(id, title, genre);
 
     const novel = {
         id,
@@ -142,7 +92,6 @@ app.post('/api/novels', (req, res) => {
         status: 'writing',
         chapterCount: 0,
         wordCount: 0,
-        projectPath,
         chapters: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -319,50 +268,40 @@ app.post('/api/novels/:id/write', async (req, res) => {
     const { targetWords = 3000, style = 'normal', lastContent = '' } = req.body;
 
     try {
-        const projectPath = novel.projectPath;
         const chapterNum = (novel.chapters?.length || 0) + 1;
         const chapterTitle = `第 ${chapterNum} 章`;
 
-        let generatedContent = '';
-        let progressLog = [];
+        const progressLog = [
+            '正在初始化 InkOS 写作引擎...',
+            `小说类型: ${novel.genre || 'xuanhuan'}`,
+            `目标字数: ${targetWords}`,
+            `写作风格: ${style}`,
+            '正在调用 AI 模型...'
+        ];
 
-        const cliPath = join(__dirname, '../../packages/cli/src/index.js');
-        
-        if (existsSync(cliPath)) {
-            progressLog.push('正在调用 InkOS 核心写作引擎...');
-            progressLog.push(`项目路径: ${projectPath}`);
-            progressLog.push(`章节目标字数: ${targetWords}`);
-            progressLog.push(`写作风格: ${style}`);
+        const engine = getInkOSEngine();
+        const result = await engine.write({
+            title: novel.title,
+            genre: novel.genre || 'xuanhuan',
+            targetWords: parseInt(targetWords),
+            style,
+            lastContent: lastContent || getLastChapterSummary(novel),
+            chapterNum
+        });
 
-            try {
-                const result = await execCommand('node', [
-                    cliPath,
-                    'write', 'next',
-                    novel.title,
-                    '--words', targetWords.toString(),
-                    '--no-interactive'
-                ], {
-                    cwd: projectPath,
-                    onProgress: (data) => {
-                        progressLog.push(data.trim());
-                    }
-                });
-                generatedContent = result;
-                progressLog.push('InkOS 核心写作完成');
-            } catch (inkosError) {
-                progressLog.push(`InkOS 执行: ${inkosError.message}`);
-                generatedContent = generateFallbackContent(novel, chapterTitle, lastContent, targetWords, style);
-            }
+        if (result.success) {
+            progressLog.push('AI 写作完成！');
+            progressLog.push(`生成字数: ${result.wordCount}`);
+            progressLog.push(`使用模型: ${result.model}`);
         } else {
-            progressLog.push('InkOS CLI 未安装，使用模拟生成');
-            generatedContent = generateFallbackContent(novel, chapterTitle, lastContent, targetWords, style);
+            progressLog.push('使用备用生成模式');
         }
 
         const chapter = {
             id: generateId(),
             title: chapterTitle,
-            content: generatedContent,
-            wordCount: generatedContent.length,
+            content: result.content,
+            wordCount: result.content.length,
             status: 'draft',
             number: chapterNum,
             createdAt: new Date().toISOString(),
@@ -384,42 +323,17 @@ app.post('/api/novels/:id/write', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('写作失败:', error);
         res.status(500).json({ error: '写作失败: ' + error.message });
     }
 });
 
-function generateFallbackContent(novel, chapterTitle, lastContent, targetWords, style) {
-    const genrePrompts = {
-        xuanhuan: '修仙世界，主角觉醒特殊体质',
-        xianxia: '仙侠江湖，剑气纵横',
-        urban: '现代都市，豪门恩怨',
-        'sci-fi': '星际科幻，探索宇宙奥秘',
-        horror: '恐怖悬疑，惊悚连连',
-        other: '精彩故事'
-    };
-
-    const genre = novel.genre || 'xuanhuan';
-    const genrePrompt = genrePrompts[genre] || genrePrompts.other;
-
-    return `${chapterTitle}
-
-${lastContent ? `（续上文）\n\n` : ''}夜色笼罩着大地，万籁俱寂。
-
-在这个广袤无垠的世界里，${genrePrompt}，无数英豪辈出，传颂千古。
-
-主角站在山巅，俯瞰着脚下的万里河山，心中豪情万丈。回想起一路走来的艰辛与坎坷，从默默无闻的草根，一步步成长为震慑一方的强者。
-
-"这一路走来，虽然艰辛，但我从未后悔。"主角喃喃自语，目光坚定地望着远方。
-
-风起云涌，天地变色。一场惊天的变革即将来临，而这个世界的命运，也将因他的选择而改变。
-
-${genrePrompt.includes('修仙') ? '只见他盘膝而坐，运转体内灵力，周身光芒大盛。' : ''}
-${genrePrompt.includes('都市') ? '繁华的都市霓虹闪烁，车水马龙的街道上，每一个人都在为自己的梦想奔波。' : ''}
-
-新的篇章，就此展开...
-
-——本章节由 InkFlow AI 辅助生成
-——目标字数: ${targetWords} | 风格: ${style} | 类型: ${genre}`;
+function getLastChapterSummary(novel) {
+    if (!novel.chapters || novel.chapters.length === 0) {
+        return '';
+    }
+    const lastChapter = novel.chapters[novel.chapters.length - 1];
+    return lastChapter.content ? lastChapter.content.slice(-500) : '';
 }
 
 app.get('/api/settings', (req, res) => {
@@ -427,6 +341,7 @@ app.get('/api/settings', (req, res) => {
         aiProvider: 'openai',
         apiKey: '',
         aiModel: 'gpt-4o',
+        baseURL: 'https://api.openai.com/v1',
         defaultGenre: 'xuanhuan',
         theme: 'light'
     });
@@ -435,19 +350,30 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
     saveJSON(SETTINGS_FILE, req.body);
+    inkosEngine = null;
     res.json({ success: true });
 });
 
 app.get('/api/status', (req, res) => {
+    const settings = loadJSON(SETTINGS_FILE, {});
     res.json({
         status: 'running',
-        inkosCore: existsSync(join(__dirname, '../../packages/cli/src/index.js')) ? 'installed' : 'not-installed',
-        version: '1.0.0'
+        version: '1.0.0',
+        aiConfigured: !!(settings.apiKey || process.env.OPENAI_API_KEY),
+        model: settings.aiModel || 'gpt-4o'
     });
 });
 
 app.listen(PORT, () => {
-    console.log(`InkFlow 服务已启动: http://localhost:${PORT}`);
+    console.log(`
+╔══════════════════════════════════════════════════════╗
+║                                                      ║
+║   InkFlow 智能小说创作平台                           ║
+║   http://localhost:${PORT}                              ║
+║                                                      ║
+║   启动成功！                                         ║
+║                                                      ║
+╚══════════════════════════════════════════════════════╝
+    `);
     console.log(`数据目录: ${DATA_DIR}`);
-    console.log(`项目目录: ${PROJECTS_DIR}`);
 });

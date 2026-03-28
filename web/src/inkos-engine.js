@@ -7,25 +7,45 @@ const __dirname = dirname(__filename);
 
 export class InkOSEngine {
     constructor(options = {}) {
-        this.apiKey = options.apiKey || process.env.OPENAI_API_KEY || '';
-        this.model = options.model || 'gpt-4o';
-        this.baseURL = options.baseURL || 'https://api.openai.com/v1';
+        this.defaultApiKey = options.apiKey || process.env.OPENAI_API_KEY || '';
+        this.defaultModel = options.model || 'gpt-4o';
+        this.defaultBaseURL = options.baseURL || 'https://api.openai.com/v1';
+        this.modelRouting = options.modelRouting || {};
         this.llmClient = null;
     }
 
+    getModelConfig(agentName) {
+        const routing = this.modelRouting[agentName];
+        if (routing) {
+            return {
+                apiKey: routing.apiKey || routing.apiKeyEnv ? process.env[routing.apiKeyEnv] || this.defaultApiKey : this.defaultApiKey,
+                model: routing.model || this.defaultModel,
+                baseURL: routing.baseURL || this.defaultBaseURL
+            };
+        }
+        return {
+            apiKey: this.defaultApiKey,
+            model: this.defaultModel,
+            baseURL: this.defaultBaseURL
+        };
+    }
+
     async callLLM(messages, options = {}) {
-        if (!this.apiKey) {
-            throw new Error('No API key configured');
+        const agentName = options.agent || 'default';
+        const config = this.getModelConfig(agentName);
+
+        if (!config.apiKey) {
+            throw new Error(`No API key configured for agent: ${agentName}`);
         }
 
-        const response = await fetch(`${this.baseURL}/chat/completions`, {
+        const response = await fetch(`${config.baseURL}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
+                'Authorization': `Bearer ${config.apiKey}`
             },
             body: JSON.stringify({
-                model: this.model,
+                model: config.model,
                 messages,
                 temperature: options.temperature || 0.7,
                 max_tokens: options.maxTokens || 4000
@@ -33,11 +53,15 @@ export class InkOSEngine {
         });
 
         if (!response.ok) {
-            throw new Error(`API 请求失败: ${response.status}`);
+            throw new Error(`API 请求失败 (${agentName}): ${response.status}`);
         }
 
         const data = await response.json();
         return data.choices?.[0]?.message?.content || '';
+    }
+
+    async callLLMWithOptions(messages, options = {}) {
+        return this.callLLM(messages, options);
     }
 
     async write(options) {
@@ -45,6 +69,41 @@ export class InkOSEngine {
 
         const pipeline = new PipelineRunner(this, options);
         return await pipeline.run();
+    }
+
+    async partialRewrite(options) {
+        const { beforeContext, selectedText, afterContext, instruction, novelTitle, genre } = options;
+
+        const systemPrompt = `你是 InkOS 局部干预引擎。你需要根据用户的指示，重写选中的一部分内容。
+要求：
+1. 保持与上下文的一致性
+2. 遵循用户的写作意图
+3. 不改变为选中部分之前的内容
+4. 保持与后续内容的衔接
+
+请直接输出重写后的内容，不需要解释。`;
+
+        const userPrompt = `前文（保持不变）：
+${beforeContext}
+
+选中需要重写的内容：
+${selectedText}
+
+用户的修改指示：
+${instruction || '重写这部分，使其更流畅、更吸引人'}
+
+请重写选中部分（只输出重写后的内容，不要包含前后文）：`;
+
+        const content = await this.callLLM([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+        ], {
+            agent: 'writer',
+            temperature: 0.7,
+            maxTokens: Math.max(selectedText.length * 2, 2000)
+        });
+
+        return { content };
     }
 }
 
@@ -447,6 +506,7 @@ ${lastContent || '(新章节开始)'}
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
             ], {
+                agent: 'writer',
                 temperature: 0.7,
                 maxTokens: Math.max(targetWords * 3, 6000)
             });

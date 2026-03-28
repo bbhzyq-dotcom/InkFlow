@@ -632,20 +632,53 @@ App.showProgressLog = function(logs) {
     }
 };
 
-App.openChapter = async function(chapterId) {
-    const chapter = this.currentNovel?.chapters?.find(c => c.id === chapterId);
-    if (chapter) {
-        this.currentChapter = chapter;
-        document.getElementById('chapter-content').value = chapter.content || '';
-        document.getElementById('current-chapter-num').textContent = chapter.number || '-';
-        document.getElementById('current-chapter-words').textContent = this.formatNumber(chapter.wordCount || 0);
-        this.updateWordCount();
-        this.updateSelectionInfo();
-        this.renderChapterList();
+App.loadSettings = async function() {
+    try {
+        const settings = await ApiClient.settings.get();
         
-        document.getElementById('editor-novel-title').textContent = 
-            `${this.currentNovel.title} - ${chapter.title || '第' + chapter.number + '章'}`;
+        document.getElementById('ai-provider').value = settings.aiProvider || 'openai';
+        document.getElementById('api-key').value = settings.apiKey || '';
+        document.getElementById('base-url').value = settings.baseURL || 'https://api.openai.com/v1';
+        document.getElementById('ai-model').value = settings.aiModel || 'gpt-4o';
+        document.getElementById('default-genre').value = settings.defaultGenre || 'xuanhuan';
+        document.getElementById('theme-select').value = settings.theme || 'light';
         
-        this.loadTruthFiles();
+        if (settings.modelRouting) {
+            document.getElementById('model-writer').value = settings.modelRouting.writer?.model || '';
+            document.getElementById('model-auditor').value = settings.modelRouting.auditor?.model || '';
+            document.getElementById('model-architect').value = settings.modelRouting.architect?.model || '';
+        }
+    } catch (error) {
+        console.log('加载设置失败:', error);
     }
+};
+
+App.saveModelRouting = function() {
+    const settings = JSON.parse(localStorage.getItem('inkflow-settings') || '{}');
+    
+    settings.modelRouting = {
+        writer: {
+            model: document.getElementById('model-writer').value || null
+        },
+        auditor: {
+            model: document.getElementById('model-auditor').value || null
+        },
+        architect: {
+            model: document.getElementById('model-architect').value || null
+        }
+    };
+    
+    localStorage.setItem('inkflow-settings', JSON.stringify(settings));
+    
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+    }).then(res => res.json())
+      .then(() => alert('多模型路由配置已保存'))
+      .catch(err => alert('保存失败: ' + err.message));
+};
+
+App.settingsVisible = function() {
+    this.loadSettings();
 };

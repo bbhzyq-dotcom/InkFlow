@@ -55,10 +55,22 @@ function getInkOSEngine() {
         const settings = loadJSON(SETTINGS_FILE, {});
         inkosEngine = new InkOSEngine({
             apiKey: settings.apiKey || process.env.OPENAI_API_KEY || '',
-            model: settings.model || 'gpt-4o',
-            baseURL: settings.baseURL || 'https://api.openai.com/v1'
+            model: settings.model || settings.aiModel || 'gpt-4o',
+            baseURL: settings.baseURL || 'https://api.openai.com/v1',
+            modelRouting: settings.modelRouting || {}
         });
     }
+    return inkosEngine;
+}
+
+function recreateInkOSEngine() {
+    const settings = loadJSON(SETTINGS_FILE, {});
+    inkosEngine = new InkOSEngine({
+        apiKey: settings.apiKey || process.env.OPENAI_API_KEY || '',
+        model: settings.model || settings.aiModel || 'gpt-4o',
+        baseURL: settings.baseURL || 'https://api.openai.com/v1',
+        modelRouting: settings.modelRouting || {}
+    });
     return inkosEngine;
 }
 
@@ -689,7 +701,7 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
     saveJSON(SETTINGS_FILE, req.body);
-    inkosEngine = null;
+    recreateInkOSEngine();
     res.json({ success: true });
 });
 

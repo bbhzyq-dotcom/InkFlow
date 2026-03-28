@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { InkOSEngine } from './inkos-engine.js';
+import { TruthFiles } from './truth-files.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -335,6 +336,161 @@ function getLastChapterSummary(novel) {
     const lastChapter = novel.chapters[novel.chapters.length - 1];
     return lastChapter.content ? lastChapter.content.slice(-500) : '';
 }
+
+app.post('/api/novels/:id/partial-rewrite', async (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novelIdx = novels.findIndex(n => n.id === req.params.id);
+    
+    if (novelIdx === -1) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const novel = novels[novelIdx];
+    const { chapterId, startPos, endPos, instruction } = req.body;
+
+    const chapter = novel.chapters.find(c => c.id === chapterId);
+    if (!chapter) {
+        return res.status(404).json({ error: '章节不存在' });
+    }
+
+    const beforePart = chapter.content.substring(0, startPos);
+    const afterPart = chapter.content.substring(endPos);
+    const selectedText = chapter.content.substring(startPos, endPos);
+
+    const progressLog = [
+        '开始局部干预...',
+        `选中内容长度: ${selectedText.length} 字`,
+        `指令: ${instruction || '重写此部分'}`
+    ];
+
+    try {
+        const engine = getInkOSEngine();
+        const settings = loadJSON(SETTINGS_FILE, {});
+
+        const systemPrompt = `你是 InkOS 局部干预引擎。你需要根据用户的指示，重写选中的一部分内容。
+要求：
+1. 保持与上下文的一致性
+2. 遵循用户的写作意图
+3. 不改变为选中部分之前的内容
+4. 保持与后续内容的衔接
+
+请直接输出重写后的内容，不需要解释。`;
+
+        const userPrompt = `前文（保持不变）：
+${beforePart}
+
+选中需要重写的内容：
+${selectedText}
+
+用户的修改指示：
+${instruction || '重写这部分，使其更流畅、更吸引人'}
+
+请重写选中部分（只输出重写后的内容，不要包含前后文）：`;
+
+        let newContent;
+        if (settings.apiKey || process.env.OPENAI_API_KEY) {
+            progressLog.push('正在调用 AI 重写...');
+            const result = await engine.partialRewrite({
+                beforeContext: beforePart,
+                selectedText: selectedText,
+                afterContext: afterPart,
+                instruction: instruction,
+                novelTitle: novel.title,
+                genre: novel.genre
+            });
+            newContent = result.content;
+            progressLog.push('AI 重写完成');
+        } else {
+            progressLog.push('使用基础重写模式');
+            newContent = `[重写内容] ${instruction || '此处已被修改'} `;
+        }
+
+        const updatedContent = beforePart + newContent + afterPart;
+
+        chapter.content = updatedContent;
+        chapter.wordCount = updatedContent.length;
+        chapter.updatedAt = new Date().toISOString();
+        chapter.lastPartialEdit = {
+            editedAt: new Date().toISOString(),
+            editedRange: { start: startPos, end: endPos },
+            instruction: instruction
+        };
+
+        novels[novelIdx].wordCount = novel.chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
+        saveJSON(NOVELS_FILE, novels);
+
+        res.json({
+            success: true,
+            chapterId,
+            content: updatedContent,
+            wordCount: updatedContent.length,
+            progressLog
+        });
+
+    } catch (error) {
+        console.error('局部重写失败:', error);
+        res.status(500).json({ error: '局部重写失败: ' + error.message });
+    }
+});
+
+app.post('/api/novels/:id/cascade-update', async (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novelIdx = novels.findIndex(n => n.id === req.params.id);
+    
+    if (novelIdx === -1) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const novel = novels[novelIdx];
+    const { fromChapter, analysisData } = req.body;
+
+    const truthFiles = new TruthFiles(novel.id, novel.projectPath);
+    const existingTruth = truthFiles.loadTruthFiles();
+
+    const updates = await truthFiles.cascadeUpdate({
+        chapterNum: fromChapter,
+        analysis: analysisData || {
+            characters: [],
+            locations: [],
+            events: [],
+            hooks: [],
+            resources: [],
+            emotional: 'neutral'
+        },
+        existingTruth: existingTruth,
+        cascadeFromChapter: fromChapter
+    });
+
+    await truthFiles.applyUpdates(updates);
+
+    res.json({
+        success: true,
+        updatedFromChapter: fromChapter,
+        updates: {
+            currentState: updates.currentState,
+            newHooks: updates.hooks.hooks.filter(h => h.originChapter >= fromChapter).length,
+            updatedSummaries: updates.chapterSummaries.summaries.filter(s => s.chapter >= fromChapter).length
+        }
+    });
+});
+
+app.get('/api/novels/:id/truth-files', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novel = novels.find(n => n.id === req.params.id);
+    
+    if (!novel) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const truthFiles = new TruthFiles(novel.id, novel.projectPath);
+    const summary = truthFiles.getTruthFilesSummary();
+    const fullTruth = truthFiles.loadTruthFiles();
+
+    res.json({
+        summary,
+        files: fullTruth
+    });
+});
 
 app.get('/api/settings', (req, res) => {
     const settings = loadJSON(SETTINGS_FILE, {

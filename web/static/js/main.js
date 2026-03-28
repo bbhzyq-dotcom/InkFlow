@@ -436,3 +436,216 @@ document.getElementById('chapter-content')?.addEventListener('input', () => {
         App.updateWordCount();
     }
 });
+
+document.getElementById('chapter-content')?.addEventListener('mouseup', () => {
+    App.updateSelectionInfo();
+});
+
+document.getElementById('partial-instruction')?.addEventListener('change', (e) => {
+    const customGroup = document.getElementById('custom-instruction-group');
+    if (e.target.value === '') {
+        customGroup.style.display = 'block';
+    } else {
+        customGroup.style.display = 'none';
+    }
+});
+
+App.updateSelectionInfo = function() {
+    const textarea = document.getElementById('chapter-content');
+    const selectedInfo = document.getElementById('selected-info');
+    const btnRewrite = document.getElementById('btn-partial-rewrite');
+    
+    if (!textarea || !selectedInfo) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    
+    if (selectedText.length > 0) {
+        const preview = selectedText.length > 50 ? selectedText.substring(0, 50) + '...' : selectedText;
+        selectedInfo.textContent = `已选中 ${selectedText.length} 字：「${preview}」`;
+        selectedInfo.classList.add('has-selection');
+        btnRewrite?.removeAttribute('disabled');
+        
+        App.selectedRange = { start, end, text: selectedText };
+    } else {
+        selectedInfo.textContent = '未选中任何内容';
+        selectedInfo.classList.remove('has-selection');
+        btnRewrite?.setAttribute('disabled', 'true');
+        
+        App.selectedRange = null;
+    }
+};
+
+App.partialRewrite = async function() {
+    if (!this.currentNovel || !this.currentChapter) {
+        alert('请先选择一本小说和一个章节');
+        return;
+    }
+    
+    if (!this.selectedRange || this.selectedRange.text.length === 0) {
+        alert('请先在编辑器中选中要重写的内容');
+        return;
+    }
+    
+    const instruction = document.getElementById('partial-instruction')?.value || 
+                        document.getElementById('custom-instruction')?.value ||
+                        '重写这段，使其更流畅';
+    
+    if (!confirm(`确认重写选中的 ${this.selectedRange.text.length} 字内容？\n\n指令：${instruction}`)) {
+        return;
+    }
+    
+    const textarea = document.getElementById('chapter-content');
+    const originalContent = textarea.value;
+    const beforePart = originalContent.substring(0, this.selectedRange.start);
+    const afterPart = originalContent.substring(this.selectedRange.end);
+    
+    this.showWritingProgress(true);
+    document.getElementById('progress-text').textContent = '正在重写选中内容...';
+    
+    try {
+        const response = await fetch(`/api/novels/${this.currentNovel.id}/partial-rewrite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chapterId: this.currentChapter.id,
+                startPos: this.selectedRange.start,
+                endPos: this.selectedRange.end,
+                instruction: instruction
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            textarea.value = result.content;
+            this.currentChapter.content = result.content;
+            this.currentChapter.wordCount = result.wordCount;
+            this.updateWordCount();
+            
+            document.getElementById('progress-text').textContent = '重写完成！';
+            document.getElementById('writing-progress-fill').style.width = '100%';
+            
+            this.showProgressLog(result.progressLog);
+            
+            setTimeout(() => {
+                this.showWritingProgress(false);
+            }, 1500);
+        } else {
+            throw new Error(result.error || '重写失败');
+        }
+    } catch (error) {
+        alert('局部重写失败：' + error.message);
+        this.showWritingProgress(false);
+    }
+};
+
+App.cascadeUpdate = async function() {
+    if (!this.currentNovel) {
+        alert('请先选择一本小说');
+        return;
+    }
+    
+    const chapterNum = this.currentChapter?.number || 1;
+    
+    if (!confirm(`确定要从第 ${chapterNum} 章开始级联更新真相文件吗？\n\n这将分析后续章节的内容变化，并更新：\n- 世界状态\n- 伏笔追踪\n- 章节摘要\n- 角色矩阵`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/novels/${this.currentNovel.id}/cascade-update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fromChapter: chapterNum,
+                analysisData: null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`级联更新完成！\n\n更新范围：第 ${result.updatedFromChapter} 章起\n新增伏笔：${result.updates.newHooks} 个\n更新摘要：${result.updates.updatedSummaries} 个`);
+            this.loadTruthFiles();
+        } else {
+            throw new Error(result.error || '更新失败');
+        }
+    } catch (error) {
+        alert('级联更新失败：' + error.message);
+    }
+};
+
+App.loadTruthFiles = async function() {
+    if (!this.currentNovel) return;
+    
+    try {
+        const response = await fetch(`/api/novels/${this.currentNovel.id}/truth-files`);
+        const data = await response.json();
+        
+        if (data.summary) {
+            document.getElementById('truth-chapter').textContent = data.summary.currentChapter || '-';
+            document.getElementById('truth-hooks').textContent = data.summary.activeHooks || '0';
+            document.getElementById('truth-characters').textContent = data.summary.characters || '0';
+            document.getElementById('truth-summaries').textContent = data.summary.chaptersTracked || '0';
+        }
+    } catch (error) {
+        console.log('加载真相文件失败:', error);
+    }
+};
+
+App.showWritingProgress = function(show) {
+    const progressEl = document.getElementById('writing-progress');
+    const progressText = document.getElementById('progress-text');
+    const progressBar = document.getElementById('writing-progress-fill');
+    
+    if (show) {
+        progressEl.style.display = 'flex';
+        progressText.textContent = '正在调用 InkOS 核心...';
+        progressBar.style.width = '30%';
+        this.animateProgress();
+    } else {
+        setTimeout(() => {
+            progressEl.style.display = 'none';
+        }, 1000);
+    }
+};
+
+App.animateProgress = function() {
+    if (!this.isWriting) return;
+    
+    const progressBar = document.getElementById('writing-progress-fill');
+    const progressText = document.getElementById('progress-text');
+    const currentWidth = parseFloat(progressBar.style.width) || 30;
+    
+    if (currentWidth < 90) {
+        progressBar.style.width = (currentWidth + Math.random() * 10) + '%';
+        progressText.textContent = 'AI 正在创作中... ' + Math.round(currentWidth) + '%';
+        setTimeout(() => this.animateProgress(), 500);
+    }
+};
+
+App.showProgressLog = function(logs) {
+    const logContainer = document.getElementById('progress-log');
+    if (logContainer && logs) {
+        logContainer.innerHTML = logs.map(log => `<div class="log-line">${log}</div>`).join('');
+    }
+};
+
+App.openChapter = async function(chapterId) {
+    const chapter = this.currentNovel?.chapters?.find(c => c.id === chapterId);
+    if (chapter) {
+        this.currentChapter = chapter;
+        document.getElementById('chapter-content').value = chapter.content || '';
+        document.getElementById('current-chapter-num').textContent = chapter.number || '-';
+        document.getElementById('current-chapter-words').textContent = this.formatNumber(chapter.wordCount || 0);
+        this.updateWordCount();
+        this.updateSelectionInfo();
+        this.renderChapterList();
+        
+        document.getElementById('editor-novel-title').textContent = 
+            `${this.currentNovel.title} - ${chapter.title || '第' + chapter.number + '章'}`;
+        
+        this.loadTruthFiles();
+    }
+};

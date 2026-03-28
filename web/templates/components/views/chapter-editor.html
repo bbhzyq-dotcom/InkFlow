@@ -112,6 +112,61 @@
                         </button>
                     </div>
                 </div>
+
+                <div class="sidebar-panel">
+                    <div class="panel-header">局部干预</div>
+                    <div class="panel-body">
+                        <div class="input-group">
+                            <label>选中内容</label>
+                            <div class="selected-info" id="selected-info">未选中任何内容</div>
+                        </div>
+                        <div class="input-group">
+                            <label>修改指令</label>
+                            <select id="partial-instruction">
+                                <option value="">自定义指令</option>
+                                <option value="重写这段，使其更紧张刺激">更紧张刺激</option>
+                                <option value="重写这段，增加更多细节描写">增加细节描写</option>
+                                <option value="重写这段，对话更自然">对话更自然</option>
+                                <option value="重写这段，减少冗余">减少冗余</option>
+                                <option value="重写这段，增加伏笔">增加伏笔</option>
+                                <option value="重写这段，风格更简洁">风格更简洁</option>
+                            </select>
+                        </div>
+                        <div class="input-group" id="custom-instruction-group" style="display:none;">
+                            <input type="text" id="custom-instruction" placeholder="输入自定义指令...">
+                        </div>
+                        <button class="btn btn-warning" style="width:100%;" onclick="App.partialRewrite()" id="btn-partial-rewrite">
+                            重写选中内容
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-panel">
+                    <div class="panel-header">真相文件</div>
+                    <div class="panel-body">
+                        <div class="truth-summary" id="truth-summary">
+                            <div class="status-item">
+                                <span class="status-label">当前章节</span>
+                                <span class="status-value" id="truth-chapter">-</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">活跃伏笔</span>
+                                <span class="status-value" id="truth-hooks">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">跟踪角色</span>
+                                <span class="status-value" id="truth-characters">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">章节摘要</span>
+                                <span class="status-value" id="truth-summaries">0</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="width:100%;margin-top:8px;" onclick="App.cascadeUpdate()">
+                            级联更新真相文件
+                        </button>
+                    </div>
+                </div>
                 
                 <div class="sidebar-panel">
                     <div class="panel-header">快捷操作</div>

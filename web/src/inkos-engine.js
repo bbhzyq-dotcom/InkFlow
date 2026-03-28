@@ -244,6 +244,93 @@ ${lastContent || '（新章节开始）'}
         };
     }
 
+    async partialRewrite(options) {
+        const { beforeContext, selectedText, afterContext, instruction, novelTitle, genre } = options;
+
+        const genreContext = {
+            xuanhuan: '玄幻修仙风格',
+            xianxia: '仙侠古风',
+            urban: '都市现代',
+            'sci-fi': '科幻未来',
+            horror: '恐怖悬疑',
+            other: '通用风格'
+        };
+
+        const systemPrompt = `你是 InkOS 局部干预引擎，专注于小说局部内容的精准重写。
+
+你的任务是：根据用户的指示，重写选中的一部分内容，同时保持：
+1. 与前文的自然衔接
+2. 与后续内容的连贯
+3. 原有的人物设定和世界观
+4. 整体文风一致
+
+重要：
+- 只重写用户选中的部分
+- 不要修改任何选外的内容
+- 直接输出重写后的内容，不要添加任何说明`;
+
+        const userPrompt = `小说标题：${novelTitle || '未命名'}
+类型：${genreContext[genre] || genreContext.other}
+
+前文（保持不变）：
+${beforeContext}
+
+---
+选中需要重写的内容：
+${selectedText}
+---
+修改指示：${instruction || '重写这部分，使其更流畅、更有张力'}
+
+请直接输出重写后的内容（只输出选中部分的替换内容，不要包含前后文）：`;
+
+        try {
+            if (!this.apiKey) {
+                return {
+                    success: false,
+                    error: 'No API key',
+                    content: `[局部重写内容] ${instruction}`
+                };
+            }
+
+            const response = await fetch(`${this.baseURL}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: Math.max(selectedText.length * 2, 2000)
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 请求失败: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content?.trim() || selectedText;
+
+            return {
+                success: true,
+                content: content,
+                originalLength: selectedText.length,
+                newLength: content.length
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                content: `[重写内容] ${instruction || '修改已完成'}`
+            };
+        }
+    }
+
     async audit(content) {
         return {
             success: true,

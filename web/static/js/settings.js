@@ -196,13 +196,14 @@ const Settings = {
     
     async saveSettings() {
         const selectedModel = this.getSelectedModelConfig('ai-model');
+        const theme = document.getElementById('theme-select').value;
         
         const settings = {
             aiModel: selectedModel ? selectedModel.id : '',
             defaultGenre: document.getElementById('default-genre').value,
             defaultChapterWords: parseInt(document.getElementById('default-chapter-words').value),
             defaultStyle: document.getElementById('default-style').value,
-            theme: document.getElementById('theme-select').value,
+            theme: theme,
             notifyEnabled: document.getElementById('notify-enabled').checked,
             notifyMethod: document.getElementById('notify-method').value,
             notifyToken: document.getElementById('notify-token').value,
@@ -229,8 +230,8 @@ const Settings = {
                 throw new Error('保存失败');
             }
             
+            ThemeManager.setTheme(theme);
             alert('设置已保存');
-            location.reload();
         } catch (error) {
             console.error('保存设置失败:', error);
             alert('保存失败: ' + error.message);

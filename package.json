@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "智能小说创作平台 - InkOS核心 + Web界面",
   "private": true,
-  "packageManager": "pnpm@9.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @inkflow/web dev",
-    "build": "pnpm --filter @inkflow/core build",
-    "start": "pnpm --filter @inkflow/web start"
+    "dev": "node web/src/server.js",
+    "start": "node web/src/server.js",
+    "install:all": "pnpm install && cd packages/core && pnpm install && cd ../cli && pnpm install"
   },
   "workspaces": [
     "packages/*"

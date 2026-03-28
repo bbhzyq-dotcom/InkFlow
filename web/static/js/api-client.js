@@ -102,5 +102,9 @@ const ApiClient = {
         save(data) {
             return ApiClient.post('/settings', data);
         }
+    },
+    
+    status() {
+        return ApiClient.get('/status');
     }
 };

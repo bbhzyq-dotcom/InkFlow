@@ -4,7 +4,18 @@
             <h2 class="editor-title" id="editor-novel-title">选择一本小说</h2>
             <div class="editor-toolbar">
                 <button class="btn btn-outline" onclick="App.saveChapter()">保存</button>
-                <button class="btn btn-primary" onclick="App.aiWriteChapter()">AI 续写</button>
+                <button class="btn btn-primary" onclick="App.aiWriteChapter()" id="btn-ai-write">AI 续写</button>
+            </div>
+        </div>
+        
+        <div id="writing-progress" class="writing-progress-overlay" style="display:none;">
+            <div class="writing-progress-content">
+                <div class="progress-header">InkOS 核心创作中</div>
+                <div class="progress-bar-large">
+                    <div class="progress-fill-large" id="writing-progress-fill"></div>
+                </div>
+                <div class="progress-text" id="progress-text">准备中...</div>
+                <div class="progress-log" id="progress-log"></div>
             </div>
         </div>
         
@@ -16,7 +27,7 @@
                     <button class="editor-tab" data-tab="outline">大纲</button>
                 </div>
                 <div class="editor-content">
-                    <textarea class="editor-textarea" id="chapter-content" placeholder="开始写作..."></textarea>
+                    <textarea class="editor-textarea" id="chapter-content" placeholder="开始写作，或点击「AI 续写」让 InkOS 核心帮您创作..."></textarea>
                     <div class="editor-preview" id="chapter-preview" style="display:none;"></div>
                 </div>
             </div>
@@ -51,8 +62,8 @@
                                 <span class="status-value" id="current-chapter-words">0</span>
                             </div>
                             <div class="status-item">
-                                <span class="status-label">AI 审计</span>
-                                <span class="status-value success" id="ai-audit-status">通过</span>
+                                <span class="status-label">AI 引擎</span>
+                                <span class="status-value success" id="ai-engine-status">就绪</span>
                             </div>
                             <div class="status-item">
                                 <span class="status-label">伏笔回收</span>
@@ -61,10 +72,10 @@
                         </div>
                         <div class="write-progress">
                             <div class="status-item">
-                                <span class="status-label">写作进度</span>
+                                <span class="status-label">创作进度</span>
                             </div>
                             <div class="progress-bar">
-                                <div class="progress-fill" id="writing-progress" style="width: 0%;"></div>
+                                <div class="progress-fill" id="writing-progress-bar" style="width: 0%;"></div>
                             </div>
                         </div>
                     </div>
@@ -85,7 +96,30 @@
                                 <option value="flowery">华丽</option>
                             </select>
                         </div>
-                        <button class="btn btn-primary" style="width:100%;" onclick="App.aiWriteChapter()">开始 AI 续写</button>
+                        <div class="input-group">
+                            <label>小说类型</label>
+                            <select id="novel-genre">
+                                <option value="xuanhuan">玄幻</option>
+                                <option value="xianxia">仙侠</option>
+                                <option value="urban">都市</option>
+                                <option value="sci-fi">科幻</option>
+                                <option value="horror">恐怖</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" style="width:100%;" onclick="App.aiWriteChapter()" id="btn-ai-write-sidebar">
+                            开始 AI 续写
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sidebar-panel">
+                    <div class="panel-header">快捷操作</div>
+                    <div class="panel-body">
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <button class="btn btn-outline" style="width:100%;" onclick="App.saveChapter()">保存当前章节</button>
+                            <button class="btn btn-outline" style="width:100%;" onclick="App.addChapter()">新建章节</button>
+                        </div>
                     </div>
                 </div>
             </div>

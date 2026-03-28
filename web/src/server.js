@@ -53,11 +53,42 @@ let inkosEngine = null;
 function getInkOSEngine() {
     if (!inkosEngine) {
         const settings = loadJSON(SETTINGS_FILE, {});
+        const customModels = settings.customModels || [];
+        const modelRegistry = {};
+        
+        customModels.forEach(m => {
+            modelRegistry[m.id] = {
+                apiKey: m.apiKey,
+                baseURL: m.baseURL,
+                model: m.id
+            };
+        });
+        
+        const selectedConfig = settings.selectedModelConfig || null;
+        const routingConfigs = settings.modelRoutingConfigs || {};
+        
+        const defaultConfig = {
+            apiKey: selectedConfig?.apiKey || '',
+            model: selectedConfig?.id || settings.aiModel || '',
+            baseURL: selectedConfig?.baseURL || ''
+        };
+        
+        const modelRouting = {};
+        ['writer', 'auditor', 'architect', 'radar', 'planner', 'composer', 'observer', 'reflector', 'normalizer', 'reviser'].forEach(agent => {
+            const routingModelId = settings.modelRouting?.[agent];
+            if (routingModelId && modelRegistry[routingModelId]) {
+                modelRouting[agent] = modelRegistry[routingModelId];
+            } else if (routingConfigs[agent]) {
+                modelRouting[agent] = routingConfigs[agent];
+            }
+        });
+        
         inkosEngine = new InkOSEngine({
-            apiKey: settings.apiKey || process.env.OPENAI_API_KEY || '',
-            model: settings.model || settings.aiModel || 'gpt-4o',
-            baseURL: settings.baseURL || 'https://api.openai.com/v1',
-            modelRouting: settings.modelRouting || {}
+            apiKey: defaultConfig.apiKey,
+            model: defaultConfig.model,
+            baseURL: defaultConfig.baseURL,
+            modelRouting: modelRouting,
+            modelRegistry: modelRegistry
         });
     }
     return inkosEngine;
@@ -65,11 +96,42 @@ function getInkOSEngine() {
 
 function recreateInkOSEngine() {
     const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
+    const modelRegistry = {};
+    
+    customModels.forEach(m => {
+        modelRegistry[m.id] = {
+            apiKey: m.apiKey,
+            baseURL: m.baseURL,
+            model: m.id
+        };
+    });
+    
+    const selectedConfig = settings.selectedModelConfig || null;
+    const routingConfigs = settings.modelRoutingConfigs || {};
+    
+    const defaultConfig = {
+        apiKey: selectedConfig?.apiKey || '',
+        model: selectedConfig?.id || settings.aiModel || '',
+        baseURL: selectedConfig?.baseURL || ''
+    };
+    
+    const modelRouting = {};
+    ['writer', 'auditor', 'architect', 'radar', 'planner', 'composer', 'observer', 'reflector', 'normalizer', 'reviser'].forEach(agent => {
+        const routingModelId = settings.modelRouting?.[agent];
+        if (routingModelId && modelRegistry[routingModelId]) {
+            modelRouting[agent] = modelRegistry[routingModelId];
+        } else if (routingConfigs[agent]) {
+            modelRouting[agent] = routingConfigs[agent];
+        }
+    });
+    
     inkosEngine = new InkOSEngine({
-        apiKey: settings.apiKey || process.env.OPENAI_API_KEY || '',
-        model: settings.model || settings.aiModel || 'gpt-4o',
-        baseURL: settings.baseURL || 'https://api.openai.com/v1',
-        modelRouting: settings.modelRouting || {}
+        apiKey: defaultConfig.apiKey,
+        model: defaultConfig.model,
+        baseURL: defaultConfig.baseURL,
+        modelRouting: modelRouting,
+        modelRegistry: modelRegistry
     });
     return inkosEngine;
 }
@@ -686,21 +748,10 @@ app.post('/api/novels/:id/detect-aigc', (req, res) => {
     res.json(result);
 });
 
-const BUILTIN_MODELS = [
-    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', baseURL: 'https://api.openai.com/v1' },
-    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', baseURL: 'https://api.anthropic.com' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'Anthropic', baseURL: 'https://api.anthropic.com' },
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek', baseURL: 'https://api.deepseek.com' },
-    { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', provider: 'Moonshot', baseURL: 'https://api.moonshot.cn/v1' }
-];
-
 app.get('/api/models', (req, res) => {
     const settings = loadJSON(SETTINGS_FILE, {});
     const customModels = settings.customModels || [];
-    const models = [...BUILTIN_MODELS, ...customModels];
-    res.json(models);
+    res.json(customModels);
 });
 
 app.post('/api/models', (req, res) => {
@@ -754,17 +805,15 @@ app.delete('/api/models/:id', (req, res) => {
 
 app.get('/api/settings', (req, res) => {
     const settings = loadJSON(SETTINGS_FILE, {
-        aiProvider: 'openai',
+        aiModel: '',
+        baseURL: '',
         apiKey: '',
-        aiModel: 'gpt-4o',
-        baseURL: 'https://api.openai.com/v1',
         defaultGenre: 'xuanhuan',
         theme: 'light',
         customModels: [],
         modelRouting: {}
     });
-    const allModels = [...BUILTIN_MODELS, ...(settings.customModels || [])];
-    settings.availableModels = allModels;
+    settings.availableModels = settings.customModels || [];
     res.json(settings);
 });
 
@@ -777,6 +826,25 @@ app.post('/api/settings', (req, res) => {
     saveJSON(SETTINGS_FILE, newSettings);
     recreateInkOSEngine();
     res.json({ success: true });
+});
+
+app.get('/api/model-config/:id', (req, res) => {
+    const settings = loadJSON(SETTINGS_FILE, {});
+    const customModels = settings.customModels || [];
+    const modelId = decodeURIComponent(req.params.id);
+    
+    const model = customModels.find(m => m.id === modelId);
+    if (!model) {
+        return res.status(404).json({ error: '模型不存在' });
+    }
+    
+    res.json({
+        id: model.id,
+        name: model.name,
+        provider: model.provider,
+        baseURL: model.baseURL,
+        apiKey: model.apiKey
+    });
 });
 
 app.get('/api/status', (req, res) => {

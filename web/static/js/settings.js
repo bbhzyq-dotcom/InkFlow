@@ -22,6 +22,7 @@ const Settings = {
     
     populateModelSelects() {
         const selects = ['ai-model', 'model-writer', 'model-auditor', 'model-architect'];
+        const models = this.models || [];
         
         selects.forEach(selectId => {
             const select = document.getElementById(selectId);
@@ -33,7 +34,7 @@ const Settings = {
             if (selectId === 'ai-model') {
                 const option = document.createElement('option');
                 option.value = '';
-                option.textContent = '请选择模型';
+                option.textContent = models.length > 0 ? '请选择模型' : '请先添加模型';
                 select.appendChild(option);
             } else {
                 const option = document.createElement('option');
@@ -42,38 +43,17 @@ const Settings = {
                 select.appendChild(option);
             }
             
-            const builtinModels = this.models.filter(m => !m.isCustom);
-            const customModels = this.models.filter(m => m.isCustom);
-            
-            if (builtinModels.length > 0) {
-                const group = document.createElement('optgroup');
-                group.label = '内置模型';
-                builtinModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.id;
-                    option.textContent = `${model.name} (${model.provider})`;
-                    if (model.provider === 'OpenAI') {
-                        option.style.color = '#10a130';
-                    } else if (model.provider === 'Anthropic') {
-                        option.style.color = '#d97706';
-                    } else if (model.provider === 'DeepSeek') {
-                        option.style.color = '#6366f1';
-                    }
-                    group.appendChild(option);
-                });
-                select.appendChild(group);
-            }
-            
-            if (customModels.length > 0) {
+            if (models.length > 0) {
                 const group = document.createElement('optgroup');
                 group.label = '自定义模型';
-                customModels.forEach(model => {
+                models.forEach(model => {
                     const option = document.createElement('option');
                     option.value = model.id;
-                    option.textContent = `${model.name} (${model.provider})`;
-                    option.style.color = '#8b5cf6';
+                    option.textContent = `${model.provider}-${model.id}`;
                     option.dataset.baseURL = model.baseURL;
                     option.dataset.apiKey = model.apiKey;
+                    option.dataset.provider = model.provider;
+                    option.dataset.name = model.name;
                     group.appendChild(option);
                 });
                 select.appendChild(group);
@@ -87,7 +67,6 @@ const Settings = {
         const s = this.settings;
         
         document.getElementById('ai-model').value = s.aiModel || '';
-        document.getElementById('api-key').value = s.apiKey || '';
         document.getElementById('default-genre').value = s.defaultGenre || 'xuanhuan';
         document.getElementById('default-chapter-words').value = s.defaultChapterWords || 3000;
         document.getElementById('default-style').value = s.defaultStyle || 'normal';
@@ -109,18 +88,18 @@ const Settings = {
         const container = document.getElementById('custom-model-list');
         if (!container) return;
         
-        const customModels = this.models.filter(m => m.isCustom);
+        const models = this.models || [];
         
-        if (customModels.length === 0) {
-            container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无自定义模型，添加后可在此管理</p>';
+        if (models.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无自定义模型，请在下方添加</p>';
             return;
         }
         
-        container.innerHTML = customModels.map(model => `
+        container.innerHTML = models.map(model => `
             <div class="model-item" data-model-id="${model.id}">
                 <div class="model-info">
-                    <div class="model-name">${model.name}</div>
-                    <div class="model-platform">${model.baseURL} / ${model.id}</div>
+                    <div class="model-name">${model.provider}-${model.id}</div>
+                    <div class="model-platform">${model.baseURL}</div>
                 </div>
                 <div class="model-actions">
                     <button class="btn-delete" onclick="Settings.deleteModel('${model.id}')">删除</button>
@@ -199,10 +178,27 @@ const Settings = {
         }
     },
     
+    getSelectedModelConfig(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select || !select.value) return null;
+        
+        const option = select.options[select.selectedIndex];
+        if (!option) return null;
+        
+        return {
+            id: select.value,
+            baseURL: option.dataset.baseURL || '',
+            apiKey: option.dataset.apiKey || '',
+            provider: option.dataset.provider || '',
+            name: option.dataset.name || ''
+        };
+    },
+    
     async saveSettings() {
+        const selectedModel = this.getSelectedModelConfig('ai-model');
+        
         const settings = {
-            aiModel: document.getElementById('ai-model').value,
-            apiKey: document.getElementById('api-key').value,
+            aiModel: selectedModel ? selectedModel.id : '',
             defaultGenre: document.getElementById('default-genre').value,
             defaultChapterWords: parseInt(document.getElementById('default-chapter-words').value),
             defaultStyle: document.getElementById('default-style').value,
@@ -210,13 +206,17 @@ const Settings = {
             notifyEnabled: document.getElementById('notify-enabled').checked,
             notifyMethod: document.getElementById('notify-method').value,
             notifyToken: document.getElementById('notify-token').value,
-            customModels: this.settings.customModels || [],
+            customModels: this.models || [],
             modelRouting: {
                 writer: document.getElementById('model-writer').value,
                 auditor: document.getElementById('model-auditor').value,
                 architect: document.getElementById('model-architect').value
             }
         };
+        
+        if (selectedModel) {
+            settings.selectedModelConfig = selectedModel;
+        }
         
         try {
             const response = await fetch('/api/settings', {
@@ -238,15 +238,31 @@ const Settings = {
     },
     
     async saveModelRouting() {
+        const writerModel = this.getSelectedModelConfig('model-writer');
+        const auditorModel = this.getSelectedModelConfig('model-auditor');
+        const architectModel = this.getSelectedModelConfig('model-architect');
+        
         const routing = {
             writer: document.getElementById('model-writer').value,
             auditor: document.getElementById('model-auditor').value,
             architect: document.getElementById('model-architect').value
         };
         
+        const routingConfigs = {};
+        if (writerModel) {
+            routingConfigs.writer = writerModel;
+        }
+        if (auditorModel) {
+            routingConfigs.auditor = auditorModel;
+        }
+        if (architectModel) {
+            routingConfigs.architect = architectModel;
+        }
+        
         const settings = {
             ...this.settings,
-            modelRouting: routing
+            modelRouting: routing,
+            modelRoutingConfigs: routingConfigs
         };
         
         try {

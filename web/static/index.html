@@ -343,15 +343,15 @@
         
         <div class="grid grid-2">
             <div class="card">
-                <h3 style="margin-bottom:16px;">AI 配置（默认模型）</h3>
+                <h3 style="margin-bottom:16px;">默认模型</h3>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+                    选择默认使用的 AI 模型，每个模型已配置好平台和密钥。
+                </p>
                 <div class="input-group">
                     <label>默认模型</label>
                     <select id="ai-model">
+                        <option value="">请先添加模型</option>
                     </select>
-                </div>
-                <div class="input-group">
-                    <label>API Key</label>
-                    <input type="password" id="api-key" placeholder="输入您的 API Key">
                 </div>
                 <button class="btn btn-primary" onclick="App.saveSettings()">保存配置</button>
             </div>
@@ -398,7 +398,7 @@
             <div class="card">
                 <h3 style="margin-bottom:16px;">自定义模型</h3>
                 <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
-                    添加您自己的模型，支持任意平台。
+                    添加您自己的模型，支持任意 AI 平台。添加后可在此管理。
                 </p>
                 
                 <div class="model-list" id="custom-model-list">
@@ -424,7 +424,7 @@
                         <label>API Key</label>
                         <input type="password" id="model-apikey" placeholder="输入 API Key">
                     </div>
-                    <button class="btn btn-primary" onclick="App.addCustomModel()">添加模型</button>
+                    <button class="btn btn-primary" onclick="Settings.addCustomModel()">添加模型</button>
                 </div>
             </div>
             
@@ -499,7 +499,7 @@
                 <p><strong>Writer（写作）：</strong>负责生成正文，建议使用高质量模型</p>
                 <p><strong>Auditor（审计）：</strong>负责检查质量，可以使用较便宜的模型</p>
                 <p><strong>Architect（规划）：</strong>负责章节结构规划，建议使用中等质量模型</p>
-                <p><strong>自定义模型：</strong>添加模型后，调用时会自动使用该模型的平台地址和密钥</p>
+                <p><strong>自定义模型：</strong>选择模型后，系统会自动使用该模型的平台地址和密钥进行调用</p>
             </div>
         </div>
     </div>

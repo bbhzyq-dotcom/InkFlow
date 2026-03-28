@@ -8,21 +8,32 @@ const __dirname = dirname(__filename);
 export class InkOSEngine {
     constructor(options = {}) {
         this.defaultApiKey = options.apiKey || process.env.OPENAI_API_KEY || '';
-        this.defaultModel = options.model || 'gpt-4o';
+        this.defaultModel = options.model || '';
         this.defaultBaseURL = options.baseURL || 'https://api.openai.com/v1';
         this.modelRouting = options.modelRouting || {};
+        this.modelRegistry = options.modelRegistry || {};
         this.llmClient = null;
     }
 
     getModelConfig(agentName) {
         const routing = this.modelRouting[agentName];
-        if (routing) {
+        if (routing && typeof routing === 'object') {
             return {
-                apiKey: routing.apiKey || routing.apiKeyEnv ? process.env[routing.apiKeyEnv] || this.defaultApiKey : this.defaultApiKey,
+                apiKey: routing.apiKey || this.defaultApiKey,
                 model: routing.model || this.defaultModel,
                 baseURL: routing.baseURL || this.defaultBaseURL
             };
         }
+        
+        if (routing && typeof routing === 'string' && this.modelRegistry[routing]) {
+            const reg = this.modelRegistry[routing];
+            return {
+                apiKey: reg.apiKey || this.defaultApiKey,
+                model: reg.model || routing,
+                baseURL: reg.baseURL || this.defaultBaseURL
+            };
+        }
+        
         return {
             apiKey: this.defaultApiKey,
             model: this.defaultModel,

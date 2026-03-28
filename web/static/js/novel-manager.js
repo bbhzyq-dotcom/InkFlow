@@ -1,0 +1,1 @@
+// Novel Manager module

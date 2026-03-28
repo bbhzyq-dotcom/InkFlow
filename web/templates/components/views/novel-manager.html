@@ -1,0 +1,31 @@
+<div id="novel-manager-view" class="view-content">
+    <div class="novel-manager">
+        <div class="page-header">
+            <h1 class="page-title">小说管理</h1>
+            <button class="btn btn-primary" onclick="App.showCreateNovelModal()">
+                <span>+</span> 新建小说
+            </button>
+        </div>
+        
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" placeholder="搜索小说..." id="novel-search">
+            </div>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">全部</button>
+                <button class="filter-btn" data-filter="writing">创作中</button>
+                <button class="filter-btn" data-filter="completed">已完成</button>
+                <button class="filter-btn" data-filter="paused">已暂停</button>
+            </div>
+        </div>
+        
+        <div class="novel-grid" id="novel-grid">
+            <div class="empty-state">
+                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-title">还没有小说</div>
+                <div class="empty-state-desc">创建您的第一本小说，开始创作之旅</div>
+                <button class="btn btn-primary" onclick="App.showCreateNovelModal()">创建小说</button>
+            </div>
+        </div>
+    </div>
+</div>

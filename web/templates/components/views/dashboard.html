@@ -1,0 +1,64 @@
+<div id="dashboard-view" class="view-content show active">
+    <div class="dashboard">
+        <div class="dashboard-header">
+            <h1>欢迎回来，作家</h1>
+            <p>使用 InkFlow 开始您的创作之旅</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-icon primary">📚</div>
+                <div class="stat-card-value" id="stat-novels">0</div>
+                <div class="stat-card-label">创作中的小说</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon success">✍️</div>
+                <div class="stat-card-value" id="stat-chapters">0</div>
+                <div class="stat-card-label">已完成章节</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon warning">📝</div>
+                <div class="stat-card-value" id="stat-words">0</div>
+                <div class="stat-card-label">累计字数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon info">🎯</div>
+                <div class="stat-card-value" id="stat-today">0</div>
+                <div class="stat-card-label">今日写作</div>
+            </div>
+        </div>
+        
+        <div class="quick-actions">
+            <button class="quick-action-btn" id="action-new-novel">
+                <div class="quick-action-icon">📖</div>
+                <div class="quick-action-title">创建新小说</div>
+                <div class="quick-action-desc">开始一个新的创作项目</div>
+            </button>
+            <button class="quick-action-btn" id="action-continue">
+                <div class="quick-action-icon">▶️</div>
+                <div class="quick-action-title">继续写作</div>
+                <div class="quick-action-desc">从上次停止的地方继续</div>
+            </button>
+            <button class="quick-action-btn" id="action-import">
+                <div class="quick-action-icon">📥</div>
+                <div class="quick-action-title">导入作品</div>
+                <div class="quick-action-desc">从已有文本续写</div>
+            </button>
+        </div>
+        
+        <div class="recent-section">
+            <div class="section-header">
+                <h2 class="section-title">最近创作</h2>
+                <button class="btn btn-outline" onclick="App.switchView('novel-manager')">查看全部</button>
+            </div>
+            <div class="novel-list" id="recent-novels">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📚</div>
+                    <div class="empty-state-title">暂无创作记录</div>
+                    <div class="empty-state-desc">开始您的第一个小说项目吧</div>
+                    <button class="btn btn-primary" onclick="App.showCreateNovelModal()">创建小说</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

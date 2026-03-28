@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InkFlow - 智能小说创作平台</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/themes/light-theme.css">
+    <link rel="stylesheet" href="/static/css/themes/dark-theme.css">
+    <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/sidebar.css">
+    <link rel="stylesheet" href="/static/css/components/footer.css">
+    <link rel="stylesheet" href="/static/css/views/dashboard.css">
+    <link rel="stylesheet" href="/static/css/views/novel-manager.css">
+    <link rel="stylesheet" href="/static/css/views/chapter-editor.css">
+</head>
+
+<body data-window-mode="standard">
+    <div class="app-container">
+        {% include 'components/header.html' %}
+        {% include 'components/sidebar.html' %}
+        
+        <div class="app-main">
+            <main class="content-area">
+                {% include 'components/views/dashboard.html' %}
+                {% include 'components/views/novel-manager.html' %}
+                {% include 'components/views/chapter-editor.html' %}
+                {% include 'components/views/settings.html' %}
+            </main>
+        </div>
+        
+        {% include 'components/footer.html' %}
+    </div>
+
+    <script src="/static/js/api-client.js"></script>
+    <script src="/static/js/theme-manager.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/novel-manager.js"></script>
+    <script src="/static/js/chapter-editor.js"></script>
+    <script src="/static/js/settings.js"></script>
+</body>
+</html>

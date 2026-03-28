@@ -1,0 +1,15 @@
+{
+  "name": "inkflow",
+  "version": "1.0.0",
+  "description": "智能小说创作平台 - InkOS核心 + Web界面",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @inkflow/web dev",
+    "build": "pnpm --filter @inkflow/core build",
+    "start": "pnpm --filter @inkflow/web start"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}

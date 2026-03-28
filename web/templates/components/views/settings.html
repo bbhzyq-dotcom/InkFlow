@@ -1,0 +1,95 @@
+<div id="settings-view" class="view-content">
+    <div class="novel-manager">
+        <div class="page-header">
+            <h1 class="page-title">设置</h1>
+        </div>
+        
+        <div class="grid grid-2">
+            <div class="card">
+                <h3 style="margin-bottom:16px;">AI 配置</h3>
+                <div class="input-group">
+                    <label>AI 提供商</label>
+                    <select id="ai-provider">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="deepseek">DeepSeek</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>API Key</label>
+                    <input type="password" id="api-key" placeholder="输入您的 API Key">
+                </div>
+                <div class="input-group">
+                    <label>模型</label>
+                    <select id="ai-model">
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini</option>
+                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="App.saveSettings()">保存配置</button>
+            </div>
+            
+            <div class="card">
+                <h3 style="margin-bottom:16px;">写作偏好</h3>
+                <div class="input-group">
+                    <label>默认小说类型</label>
+                    <select id="default-genre">
+                        <option value="xuanhuan">玄幻</option>
+                        <option value="xianxia">仙侠</option>
+                        <option value="urban">都市</option>
+                        <option value=" sci-fi">科幻</option>
+                        <option value="other">其他</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>每章目标字数</label>
+                    <input type="number" id="default-chapter-words" value="3000" min="1000" max="10000">
+                </div>
+                <div class="input-group">
+                    <label>写作风格</label>
+                    <select id="default-style">
+                        <option value="normal">正常</option>
+                        <option value="compact">紧凑</option>
+                        <option value="flowery">华丽</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="App.saveSettings()">保存偏好</button>
+            </div>
+            
+            <div class="card">
+                <h3 style="margin-bottom:16px;">通知设置</h3>
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="notify-enabled"> 启用写作完成通知
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label>通知方式</label>
+                    <select id="notify-method">
+                        <option value="none">无</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="feishu">飞书</option>
+                        <option value="webhook">Webhook</option>
+                    </select>
+                </div>
+                <div class="input-group" id="notify-config" style="display:none;">
+                    <label>配置</label>
+                    <input type="text" id="notify-token" placeholder="Token / Webhook URL">
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 style="margin-bottom:16px;">主题</h3>
+                <div class="input-group">
+                    <label>界面主题</label>
+                    <select id="theme-select">
+                        <option value="light">浅色</option>
+                        <option value="dark">深色</option>
+                        <option value="system">跟随系统</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

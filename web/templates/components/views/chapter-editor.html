@@ -1,0 +1,94 @@
+<div id="chapter-editor-view" class="view-content">
+    <div class="chapter-editor">
+        <div class="editor-header">
+            <h2 class="editor-title" id="editor-novel-title">选择一本小说</h2>
+            <div class="editor-toolbar">
+                <button class="btn btn-outline" onclick="App.saveChapter()">保存</button>
+                <button class="btn btn-primary" onclick="App.aiWriteChapter()">AI 续写</button>
+            </div>
+        </div>
+        
+        <div class="editor-container">
+            <div class="editor-main">
+                <div class="editor-tabs">
+                    <button class="editor-tab active" data-tab="write">编辑</button>
+                    <button class="editor-tab" data-tab="preview">预览</button>
+                    <button class="editor-tab" data-tab="outline">大纲</button>
+                </div>
+                <div class="editor-content">
+                    <textarea class="editor-textarea" id="chapter-content" placeholder="开始写作..."></textarea>
+                    <div class="editor-preview" id="chapter-preview" style="display:none;"></div>
+                </div>
+            </div>
+            
+            <div class="editor-sidebar">
+                <div class="sidebar-panel">
+                    <div class="panel-header">章节列表</div>
+                    <div class="panel-body">
+                        <div class="chapter-list" id="chapter-list">
+                            <div class="chapter-item">
+                                <div class="chapter-num">1</div>
+                                <div class="chapter-info">
+                                    <div class="chapter-title">第一章 起点</div>
+                                    <div class="chapter-words">3,000 字</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="App.addChapter()">+ 新建章节</button>
+                    </div>
+                </div>
+                
+                <div class="sidebar-panel">
+                    <div class="panel-header">写作状态</div>
+                    <div class="panel-body">
+                        <div class="ai-status">
+                            <div class="status-item">
+                                <span class="status-label">当前章节</span>
+                                <span class="status-value" id="current-chapter-num">-</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">章节字数</span>
+                                <span class="status-value" id="current-chapter-words">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">AI 审计</span>
+                                <span class="status-value success" id="ai-audit-status">通过</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">伏笔回收</span>
+                                <span class="status-value" id="hook-recovery">0%</span>
+                            </div>
+                        </div>
+                        <div class="write-progress">
+                            <div class="status-item">
+                                <span class="status-label">写作进度</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="writing-progress" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sidebar-panel">
+                    <div class="panel-header">AI 写作设置</div>
+                    <div class="panel-body">
+                        <div class="input-group">
+                            <label>目标字数</label>
+                            <input type="number" id="target-words" value="3000" min="1000" max="10000">
+                        </div>
+                        <div class="input-group">
+                            <label>写作风格</label>
+                            <select id="writing-style">
+                                <option value="normal">正常</option>
+                                <option value="compact">紧凑</option>
+                                <option value="flowery">华丽</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" style="width:100%;" onclick="App.aiWriteChapter()">开始 AI 续写</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

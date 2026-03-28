@@ -1,0 +1,23 @@
+{
+  "name": "@inkflow/core",
+  "version": "1.0.0",
+  "description": "InkOS Core - 多Agent小说写作引擎",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "openai": "^4.47.0",
+    "anthropic": "^0.21.0",
+    "zod": "^3.23.0",
+    "commander": "^13.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

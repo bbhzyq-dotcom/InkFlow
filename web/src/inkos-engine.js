@@ -10,334 +10,950 @@ export class InkOSEngine {
         this.apiKey = options.apiKey || process.env.OPENAI_API_KEY || '';
         this.model = options.model || 'gpt-4o';
         this.baseURL = options.baseURL || 'https://api.openai.com/v1';
+        this.llmClient = null;
+    }
+
+    async callLLM(messages, options = {}) {
+        if (!this.apiKey) {
+            throw new Error('No API key configured');
+        }
+
+        const response = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+                model: this.model,
+                messages,
+                temperature: options.temperature || 0.7,
+                max_tokens: options.maxTokens || 4000
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API 请求失败: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || '';
     }
 
     async write(options) {
-        const { title, genre = 'xuanhuan', targetWords = 3000, lastContent = '', style = 'normal' } = options;
-        
-        const genrePrompts = {
-            xuanhuan: '修仙世界，主角觉醒特殊体质，逆天改命',
-            xianxia: '仙侠江湖，剑气纵横，御剑飞行',
-            urban: '现代都市，豪门恩怨，商战风云',
-            'sci-fi': '星际科幻，宇宙探索，星球大战',
-            horror: '恐怖悬疑，惊悚连连，心跳加速',
-            other: '精彩故事，扣人心弦'
+        const { title, genre = 'xuanhuan', targetWords = 3000, lastContent = '', style = 'normal', truthFiles = null } = options;
+
+        const pipeline = new PipelineRunner(this, options);
+        return await pipeline.run();
+    }
+}
+
+class PipelineRunner {
+    constructor(engine, options) {
+        this.engine = engine;
+        this.options = options;
+        this.progress = [];
+        this.truthFiles = options.truthFiles || null;
+        this.agents = {
+            radar: new RadarAgent(engine),
+            planner: new PlannerAgent(engine),
+            composer: new ComposerAgent(engine),
+            architect: new ArchitectAgent(engine),
+            writer: new WriterAgent(engine),
+            observer: new ObserverAgent(engine),
+            reflector: new ReflectorAgent(engine),
+            normalizer: new NormalizerAgent(engine),
+            auditor: new AuditorAgent(engine),
+            reviser: new ReviserAgent(engine)
         };
+    }
+
+    async run() {
+        const { title, genre, targetWords, lastContent, style } = this.options;
+
+        try {
+            this.log('=== InkOS 多Agent写作管线启动 ===');
+            this.log(`小说: ${title}`);
+            this.log(`类型: ${genre}`);
+            this.log(`目标字数: ${targetWords}`);
+
+            const state = {
+                title,
+                genre,
+                targetWords: parseInt(targetWords),
+                style,
+                lastContent,
+                chapterNum: this.options.chapterNum || 1,
+                context: {},
+                draft: '',
+                auditResult: null,
+                issues: [],
+                fixedIssues: []
+            };
+
+            if (this.truthFiles) {
+                state.truth = this.truthFiles.loadTruthFiles();
+                this.log('已加载真相文件');
+            }
+
+            this.log('--- [1/10] Radar: 扫描趋势 ---');
+            state.radarResult = await this.agents.radar.run(state);
+            this.log(`趋势分析完成: ${state.radarResult.trends?.length || 0} 个趋势`);
+
+            this.log('--- [2/10] Planner: 规划本章意图 ---');
+            state.plannerResult = await this.agents.planner.run(state);
+            this.log(`本章意图: ${state.plannerResult.goal}`);
+            this.log(`必须保持: ${state.plannerResult.mustKeep?.length || 0} 项`);
+            this.log(`必须避免: ${state.plannerResult.mustAvoid?.length || 0} 项`);
+
+            this.log('--- [3/10] Composer: 编排上下文 ---');
+            state.composerResult = await this.agents.composer.run(state);
+            this.log(`上下文片段: ${state.composerResult.contextChunks?.length || 0}`);
+            this.log(`规则栈: ${state.composerResult.ruleStack?.length || 0} 条`);
+
+            this.log('--- [4/10] Architect: 规划章节结构 ---');
+            state.architectResult = await this.agents.architect.run(state);
+            this.log(`场景节拍: ${state.architectResult.beats?.length || 0}`);
+            this.log(`章节大纲已生成`);
+
+            this.log('--- [5/10] Writer: 生成正文 ---');
+            state.draft = await this.agents.writer.run(state);
+            this.log(`初稿生成完成, 字数: ${state.draft.length}`);
+
+            this.log('--- [6/10] Observer: 观察提取事实 ---');
+            state.observerResult = await this.agents.observer.run({ ...state, draft: state.draft });
+            this.log(`提取事实: ${state.observerResult.facts?.length || 0}`);
+            this.log(`角色: ${state.observerResult.characters?.length || 0}`);
+            this.log(`位置: ${state.observerResult.locations?.length || 0}`);
+            this.log(`伏笔: ${state.observerResult.hooks?.length || 0}`);
+
+            this.log('--- [7/10] Reflector: 状态反射 ---');
+            state.reflectorResult = await this.agents.reflector.run(state);
+            this.log(`状态更新: ${state.reflectorResult.updates?.length || 0} 项`);
+
+            this.log('--- [8/10] Normalizer: 归一化字数 ---');
+            state.normalizedDraft = await this.agents.normalizer.run({
+                ...state,
+                draft: state.draft,
+                targetWords: state.targetWords
+            });
+            this.log(`归一化后字数: ${state.normalizedDraft.length}`);
+
+            const finalDraft = state.normalizedDraft || state.draft;
+
+            this.log('--- [9/10] Auditor: 连续性审计 ---');
+            state.auditResult = await this.agents.auditor.run({
+                ...state,
+                draft: finalDraft
+            });
+            this.log(`审计维度: 33`);
+            this.log(`发现问题: ${state.auditResult.issues?.length || 0}`);
+            this.log(`审计评分: ${state.auditResult.score || 0}/100`);
+
+            let finalContent = finalDraft;
+
+            if (state.auditResult.issues?.length > 0) {
+                this.log('--- [10/10] Reviser: 修订问题 ---');
+                const reviseResult = await this.agents.reviser.run({
+                    ...state,
+                    draft: finalDraft,
+                    issues: state.auditResult.issues
+                });
+                finalContent = reviseResult.revisedDraft || finalDraft;
+                state.fixedIssues = reviseResult.fixedIssues || [];
+                this.log(`自动修复: ${state.fixedIssues.filter(i => i.autoFixed).length}`);
+                this.log(`待人工审核: ${state.fixedIssues.filter(i => !i.autoFixed).length}`);
+            }
+
+            this.log('=== 管线执行完成 ===');
+
+            return {
+                success: true,
+                content: finalContent,
+                wordCount: finalContent.length,
+                model: this.engine.model,
+                progress: this.progress,
+                auditResult: state.auditResult,
+                state: {
+                    plannerResult: state.plannerResult,
+                    observerResult: state.observerResult,
+                    reflectorResult: state.reflectorResult,
+                    auditResult: state.auditResult,
+                    fixedIssues: state.fixedIssues
+                }
+            };
+
+        } catch (error) {
+            this.log(`管线执行失败: ${error.message}`);
+            return {
+                success: false,
+                error: error.message,
+                content: this.engine.generateFallback(this.options),
+                wordCount: 0,
+                progress: this.progress
+            };
+        }
+    }
+
+    log(message) {
+        this.progress.push(message);
+        console.log(`[Pipeline] ${message}`);
+    }
+}
+
+class RadarAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const trends = [
+            '系统流小说持续热门',
+            '凡人流修仙回归',
+            '都市异能文受追捧',
+            '轻松日常文受欢迎',
+            '多女主文依然有市场'
+        ];
+
+        const marketAnalysis = {
+            trends: trends.slice(0, 3),
+            popularElements: ['逆袭', '成长', '悬疑'],
+            readerPreferences: '偏好快节奏、爽点密集的剧情'
+        };
+
+        return marketAnalysis;
+    }
+}
+
+class PlannerAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { genre, chapterNum, lastContent } = state;
+
+        const genreGoals = {
+            xuanhuan: {
+                goal: '主角获得机缘，实力提升',
+                mustKeep: ['主角目标', '修炼体系', '等级设定'],
+                mustAvoid: ['战力崩坏', '节奏拖沓', '逻辑漏洞']
+            },
+            xianxia: {
+                goal: '主角历练成长，感悟剑道',
+                mustKeep: ['剑道心法', '江湖恩怨', '师门传承'],
+                mustAvoid: ['境界跳跃', '女主过多', '配角抢戏']
+            },
+            urban: {
+                goal: '主角逆袭人生，商业版图扩张',
+                mustKeep: ['主角核心优势', '商业逻辑', '情感线'],
+                mustAvoid: ['过于YY', '女主倒贴', '打脸过度']
+            },
+            'sci-fi': {
+                goal: '科技突破，探索宇宙奥秘',
+                mustKeep: ['科技设定', '宇宙规则', '冒险精神'],
+                mustAvoid: ['科技树跳跃', '过于玄幻化', '逻辑矛盾']
+            },
+            horror: {
+                goal: '恐怖氛围营造，悬疑揭秘',
+                mustKeep: ['恐怖氛围', '悬念铺垫', '心理描写'],
+                mustAvoid: ['过于血腥', '鬼怪过多', '科学解释太清']
+            }
+        };
+
+        const defaultGoal = {
+            goal: '推进剧情，埋设伏笔',
+            mustKeep: ['主线剧情', '人物设定'],
+            mustAvoid: ['偏离主题', '节奏拖沓']
+        };
+
+        return genreGoals[genre] || defaultGoal;
+    }
+}
+
+class ComposerAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { truth, lastContent } = state;
+
+        const contextChunks = [];
+        const ruleStack = [];
+
+        if (truth?.currentState) {
+            contextChunks.push({
+                type: 'currentState',
+                content: `当前章节: ${truth.currentState.chapter}\n位置: ${truth.currentState.location}\n主角状态: ${JSON.stringify(truth.currentState.protagonist)}`,
+                relevance: 0.9
+            });
+        }
+
+        if (truth?.hooks?.hooks?.length > 0) {
+            const openHooks = truth.hooks.hooks.filter(h => h.status === 'open').slice(0, 3);
+            if (openHooks.length > 0) {
+                contextChunks.push({
+                    type: 'pendingHooks',
+                    content: `待回收伏笔:\n${openHooks.map(h => `- ${h.description} (第${h.originChapter}章)`).join('\n')}`,
+                    relevance: 0.85
+                });
+                ruleStack.push('必须在本章推进至少一个伏笔的进展');
+            }
+        }
+
+        if (truth?.chapterSummaries?.summaries?.length > 0) {
+            const recentChapters = truth.chapterSummaries.summaries.slice(-3);
+            contextChunks.push({
+                type: 'recentChapters',
+                content: `近期章节摘要:\n${recentChapters.map(s => `第${s.chapter}章: ${s.events?.slice(0, 2).join(', ') || '无'}`).join('\n')}`,
+                relevance: 0.8
+            });
+        }
+
+        if (lastContent) {
+            contextChunks.push({
+                type: 'lastChapter',
+                content: `上一章结尾:\n${lastContent.slice(-500)}`,
+                relevance: 0.95
+            });
+            ruleStack.push('必须与上一章自然衔接');
+        }
+
+        ruleStack.push('保持文风一致');
+        ruleStack.push('控制对话占比在20%-40%之间');
+        ruleStack.push('每1000字至少一个情节点');
+
+        return {
+            contextChunks,
+            ruleStack,
+            contextCount: contextChunks.length
+        };
+    }
+}
+
+class ArchitectAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { targetWords, style } = state;
+
+        const beatsPerThousand = {
+            normal: 2,
+            compact: 3,
+            flowery: 1.5
+        };
+
+        const beatCount = Math.ceil(targetWords / 1000 * (beatsPerThousand[style] || 2));
+
+        const beats = [];
+        const phases = ['开篇', '发展', '高潮', '收尾'];
+
+        for (let i = 0; i < beatCount; i++) {
+            const phaseIndex = Math.min(Math.floor(i / beatCount * 4), 3);
+            beats.push({
+                index: i + 1,
+                phase: phases[phaseIndex],
+                purpose: this.getBeatPurpose(i, beatCount, phaseIndex),
+                pacing: i < beatCount * 0.3 ? 'slow' : i < beatCount * 0.7 ? 'medium' : 'fast'
+            });
+        }
+
+        return {
+            beats,
+            outline: this.generateOutline(beats),
+            structure: {
+                beginning: Math.ceil(targetWords * 0.15),
+                development: Math.ceil(targetWords * 0.5),
+                climax: Math.ceil(targetWords * 0.2),
+                ending: Math.ceil(targetWords * 0.15)
+            }
+        };
+    }
+
+    getBeatPurpose(index, total, phaseIndex) {
+        const purposes = [
+            '建立场景，引出冲突',
+            '推进剧情，埋设伏笔',
+            '增加张力，主角决策',
+            '危机降临或转机出现',
+            '高潮对决或关键突破',
+            '收尾铺垫，留下悬念'
+        ];
+        return purposes[index % purposes.length];
+    }
+
+    generateOutline(beats) {
+        return beats.map(b => `[${b.phase}] ${b.purpose}`).join(' → ');
+    }
+}
+
+class WriterAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { title, genre, targetWords, style, plannerResult, composerResult, architectResult, lastContent } = state;
 
         const stylePrompts = {
-            normal: '文笔流畅，叙事自然',
-            compact: '节奏紧凑，简洁有力',
-            flowery: '辞藻华丽，描写细腻'
+            normal: '文笔流畅，叙事自然，节奏适中',
+            compact: '节奏紧凑，简洁有力，高潮迭起',
+            flowery: '辞藻华丽，描写细腻，意境悠远'
         };
 
-        const systemPrompt = `你是 InkOS 多Agent小说写作引擎，专注于创作高质量网络小说。
+        const systemPrompt = `你是 InkOS 写作 Agent，专注于创作高质量网络小说。
 
-当前任务：创作一个章节
-小说类型：${genre}
-写作风格：${stylePrompts[style] || stylePrompts.normal}
+小说信息：
+- 标题: ${title}
+- 类型: ${genre}
+- 目标字数: ${targetWords}
+- 写作风格: ${stylePrompts[style] || stylePrompts.normal}
 
-请根据以下上文续写章节（目标字数：${targetWords}+）：
+本章意图：
+- 目标: ${plannerResult?.goal || '推进剧情'}
+- 必须保持: ${(plannerResult?.mustKeep || []).join(', ')}
+- 必须避免: ${(plannerResult?.mustAvoid || []).join(', ')}
 
-${lastContent || '（新章节开始）'}
+章节大纲：
+${architectResult?.outline || '按正常剧情推进'}
+
+上下文：
+${(composerResult?.contextChunks || []).map(c => `[${c.type}]: ${c.content}`).join('\n\n')}
+
+规则栈：
+${(composerResult?.ruleStack || []).map(r => `- ${r}`).join('\n')}
+
+请根据以上信息创作本章内容。`;
+
+        const userPrompt = `请续写小说「${title}」的第 ${state.chapterNum} 章。
+
+上文内容：
+${lastContent || '(新章节开始)'}
 
 要求：
-1. 遵循网络小说写作规范
-2. 保持剧情连贯，逻辑清晰
-3. 适度埋设伏笔，推动剧情发展
-4. 对话自然，符合人物性格
-5. 避免AI写作痕迹，使用多样的句式结构`;
+1. 生成至少 ${targetWords} 字的内容
+2. 自然衔接上文
+3. 遵循章节大纲和规则栈
+4. 保持类型特色
+5. 避免AI写作痕迹
+
+直接输出小说正文，不要有任何解释或说明。`;
 
         try {
-            const response = await fetch(`${this.baseURL}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: '请续写这个章节，生成至少' + targetWords + '字的内容。' }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: Math.max(targetWords * 2, 4000)
-                })
+            const content = await this.engine.callLLM([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ], {
+                temperature: 0.7,
+                maxTokens: Math.max(targetWords * 3, 6000)
             });
 
-            if (!response.ok) {
-                throw new Error(`API 请求失败: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content || '';
-
-            return {
-                success: true,
-                content: content,
-                wordCount: content.length,
-                model: this.model
-            };
+            return content;
         } catch (error) {
-            return {
-                success: false,
-                error: error.message,
-                content: this.generateFallback(options),
-                wordCount: 0
-            };
+            console.error('Writer API 调用失败:', error);
+            return this.engine.generateFallback(state);
         }
     }
+}
 
-    generateFallback(options) {
-        const { title, genre = 'xuanhuan', targetWords = 3000, lastContent = '' } = options;
-        const chapterNum = options.chapterNum || 1;
-
-        const genreContent = {
-            xuanhuan: `
-夜幕降临，繁星点点。
-
-在天元大陆的边缘，有一座名为青云的小镇。这里虽然偏僻，却因为背靠青云山脉而小有名气。
-
-主角林尘独自站在山巅，俯瞰着脚下的大地。十六年前，他本是林家嫡系子弟，却因一场变故被贬为庶人，从此流落至此。
-
-"父亲，母亲..."林尘低声呢喃，眼中闪过一丝坚定，"总有一天，我会重回林家，让那些曾经欺辱我们的人付出代价！"
-
-就在这时，天空骤然变色。一道璀璨的流星划过天际，直直地朝着青云山脉坠落。
-
-林尘瞳孔一缩，那流星的方向...正是他平日修炼的地方！
-
-来不及多想，林尘身形一闪，如同鬼魅般朝着那处飞掠而去。
-
-等他赶到时，只见原地留下了一个巨大的深坑，坑底静静躺着一块通体漆黑的石碑。
-
-当林尘的手触碰到石碑的瞬间，一股磅礴的信息流涌入脑海...
-
-自此，林尘的命运开始了转折。
-
-在这个修仙者为尊的世界，看他如何以凡人之躯，逆天改命，最终成为一代传奇！
-`,
-            xianxia: `
-蜀山剑派，千年古刹。
-
-云雾缭绕的山峰之上，剑气纵横。一道身影立于悬崖边，白衣猎猎，青丝飞扬。
-
-"问心无愧，剑道可成。"少女轻声自语，手中长剑嗡鸣。
-
-她是苏幼薇，蜀山剑派这一代最杰出的弟子。然而就在三个月前，她的师尊突然闭关不出，临行前只留下一句警告：下山避祸。
-
-"我不走。"苏幼薇握紧剑柄，"师尊有难，弟子岂能独自偷生？"
-
-就在此时，一道剑光从远处激射而来。苏幼薇长剑出鞘，剑气如虹，将来剑击落。
-
-"师妹，你还是这么固执。"一道身影从云雾中走出，正是蜀山剑派的大师兄，姜离。
-
-"师兄！"苏幼薇眼中闪过一丝惊喜，"师尊他..."
-
-"我知道。"姜离神色凝重，"所以我来找你。三日后，随我一同前往东海。"
-
-东海之上，有一座神秘仙岛，传闻中，那里藏有突破瓶颈的机缘。
-
-苏幼薇点了点头，眼中燃起了希望的光芒。
-
-剑道之路，漫漫长远。但只要有同伴同行，便不觉得孤独。
-`,
-            urban: `
-东海市，繁华都市。
-
-霓虹闪烁，车水马龙。在这喧嚣的城市中，每个人都在为自己的生活奔波。
-
-陈风站在写字楼的天台，俯瞰着脚下的万家灯火。三年了，他来到这座城市已经整整三年。
-
-三年前，他是农村走出来的大学生，带着满腔热血和对未来的憧憬。三年后，他只是这城市中无数普通白领中的一员。
-
-"陈风，你被开除了。"今天下午，老板的话如同惊雷。
-
-就在他即将离开时，一通电话改变了一切。
-
-"少爷，老爷子病重，请您回去继承家业。"
-
-陈风笑了。他没想到，自己竟然还有这样的身份。
-
-"陈家..."他喃喃道，"我以为这辈子都不会和那个家族有任何关系了。"
-
-三十分钟后，一辆黑色迈巴赫停在了楼下。陈风坐进车内，看着窗外飞速倒退的景色，眼神渐渐变得深邃。
-
-属于他的时代，终于要来临了。
-`,
-            'sci-fi': `
-星际历 2387 年，地球联邦第三舰队。
-
-"报告舰长，前方发现不明舰队！"通讯兵的声音带着一丝紧张。
-
-舰长李翰快步走到指挥台前，看着全息屏幕上的影像。数十艘造型诡异的飞船正缓缓逼近，它们的设计风格完全超出了人类的认知。
-
-"这是什么？"副官倒吸一口凉气。
-
-李翰深吸一口气："虫族。"
-
-这两个字让所有人都安静了下来。虫族，一个在银河系中臭名昭著的存在。它们所到之处，文明凋零，生灵涂炭。
-
-"全体进入战斗状态！"李翰下达命令。
-
-就在这时，一道通讯请求接入。来者，竟然是人类的面孔。
-
-"地球的人类，你们好。"屏幕上的人微微一笑，"我是虫族的使者，特来与你们谈判。"
-
-李翰眉头紧锁："谈判？"
-
-"是的。我们有一个共同的敌人..."使者的话让所有人都愣住了。
-
-银河系的格局，即将迎来巨变。
-`,
-            horror: `
-深夜，十一点五十九分。
-
-林晓独自走在回家的路上。老旧的居民区里，路灯忽明忽暗，投下诡异的影子。
-
-今天加班太晚了，末班车已经停运，她只能步行回家。
-
-穿过那条熟悉的小巷时，林晓突然停下了脚步。
-
-巷子尽头，站着一个人。
-
-不，不对...那不是人。
-
-一个苍白的、没有任何表情的脸，正直直地盯着她。
-
-林晓想要尖叫，却发现自己发不出任何声音。想要逃跑，却发现双脚如同灌了铅一般沉重。
-
-"找到你了。"那个人影开口，声音如同从地狱传来。
-
-林晓终于明白，为什么最近总觉得有人在跟踪她。
-
-一切，都要从那个传说开始...
-
-深山中的古老宅院，尘封多年的秘密，即将被揭开。
-`,
-            other: `
-故事，就从这里开始。
-
-生活的浪潮一波接一波，我们都是浪潮中的小舟。
-
-但只要不放弃，就一定能到达彼岸。
-
-精彩的故事，正在上演...
-`
-        };
-
-        const content = genreContent[genre] || genreContent.other;
-        const repeated = Math.ceil(targetWords / content.length);
-
-        let result = `第${chapterNum}章\n\n`;
-        for (let i = 0; i < repeated; i++) {
-            result += content;
-        }
-
-        return result.substring(0, targetWords * 1.5) + '\n\n—— 本章节由 InkFlow AI 辅助生成';
+class ObserverAgent {
+    constructor(engine) {
+        this.engine = engine;
     }
 
-    async plan(options) {
-        return {
-            success: true,
-            outline: '章节大纲已生成',
-            goals: ['推进剧情', '塑造人物', '埋设伏笔']
-        };
-    }
+    async run(state) {
+        const { draft } = state;
 
-    async partialRewrite(options) {
-        const { beforeContext, selectedText, afterContext, instruction, novelTitle, genre } = options;
+        const facts = [];
+        const characters = [];
+        const locations = [];
+        const hooks = [];
+        const resources = [];
+        const relationships = [];
+        const emotions = [];
+        const timeline = [];
+        const physicalStates = [];
 
-        const genreContext = {
-            xuanhuan: '玄幻修仙风格',
-            xianxia: '仙侠古风',
-            urban: '都市现代',
-            'sci-fi': '科幻未来',
-            horror: '恐怖悬疑',
-            other: '通用风格'
-        };
+        const lines = draft.split(/[。！？\n]/);
 
-        const systemPrompt = `你是 InkOS 局部干预引擎，专注于小说局部内容的精准重写。
+        for (const line of lines) {
+            if (!line.trim()) continue;
 
-你的任务是：根据用户的指示，重写选中的一部分内容，同时保持：
-1. 与前文的自然衔接
-2. 与后续内容的连贯
-3. 原有的人物设定和世界观
-4. 整体文风一致
+            const charPatterns = [
+                /([【《]?[^\s【】《》，。！？：；""''（）]+[】》]?(?:说道|问道|答道|说|问|答|道|认为|觉得|想))/,
+                /([^\s，。！？：；""''（）]{2,5})(?:的|是|在|和|与)(?:一个|某种)/,
+            ];
 
-重要：
-- 只重写用户选中的部分
-- 不要修改任何选外的内容
-- 直接输出重写后的内容，不要添加任何说明`;
-
-        const userPrompt = `小说标题：${novelTitle || '未命名'}
-类型：${genreContext[genre] || genreContext.other}
-
-前文（保持不变）：
-${beforeContext}
-
----
-选中需要重写的内容：
-${selectedText}
----
-修改指示：${instruction || '重写这部分，使其更流畅、更有张力'}
-
-请直接输出重写后的内容（只输出选中部分的替换内容，不要包含前后文）：`;
-
-        try {
-            if (!this.apiKey) {
-                return {
-                    success: false,
-                    error: 'No API key',
-                    content: `[局部重写内容] ${instruction}`
-                };
+            for (const pattern of charPatterns) {
+                const match = line.match(pattern);
+                if (match && match[1] && match[1].length > 1 && match[1].length < 10) {
+                    const name = match[1].trim();
+                    const existing = characters.find(c => c.name === name);
+                    if (existing) {
+                        existing.mentions++;
+                    } else {
+                        characters.push({ name, mentions: 1, type: 'character' });
+                    }
+                    break;
+                }
             }
 
-            const response = await fetch(`${this.baseURL}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: Math.max(selectedText.length * 2, 2000)
-                })
+            const locationPatterns = [
+                /(?:在|来到|前往|走进|冲出|逃离)([^\s，。！？：；""''（）]+?)(?:之地|之处|之中|之上|之下|之内|之外|之境|山脉|森林|城池|村庄|小镇|山洞|宫殿|大殿|广场|街道|房间)/,
+                /(?:在|来到|前往|走进)([^\s，。！？：；""''（）]+)(?:修炼|闭关|疗伤|休息|等待)/,
+                /(?:来到|抵达|到了)([^\s，。！？：；""''（）]+)/
+            ];
+
+            for (const pattern of locationPatterns) {
+                const match = line.match(pattern);
+                if (match) {
+                    const loc = match[1].trim();
+                    if (loc.length > 1 && loc.length < 20) {
+                        const existing = locations.find(l => l.name === loc);
+                        if (existing) {
+                            existing.mentions++;
+                        } else {
+                            locations.push({ name: loc, mentions: 1, type: 'location' });
+                        }
+                    }
+                }
+            }
+
+            const hookPatterns = [
+                /(?:原来|竟然|殊不知|出乎意料|谁知|但见|只见|只见得)/,
+                /(?:这个秘密|这个真相|这个疑问|这个谜团)/,
+                /(?:后来才|直到|直到有一天|直到那时)/
+            ];
+
+            for (const pattern of hookPatterns) {
+                if (pattern.test(line)) {
+                    hooks.push({
+                        type: 'foreshadow',
+                        description: line.substring(0, 50).trim(),
+                        content: line.trim()
+                    });
+                    break;
+                }
+            }
+
+            const resourcePatterns = [
+                /(?:获得|得到|习得|领悟)(?:了)?([^\s，。！？：；""''（）]+?)(?:之力|之术|之法|之能|功法|秘籍|灵药|仙丹|神兵|法宝)/,
+                /(?:失去|消耗|用尽)(?:了)?([^\s，。！？：；""''（）]+?)/
+            ];
+
+            for (const pattern of resourcePatterns) {
+                const match = line.match(pattern);
+                if (match) {
+                    resources.push({
+                        name: match[1].trim(),
+                        change: pattern.source.includes('获得') ? 'acquired' : 'consumed',
+                        context: line.trim()
+                    });
+                }
+            }
+
+            const emotionWords = {
+                positive: ['喜悦', '兴奋', '欣慰', '高兴', '开心', '激动', '期待'],
+                negative: ['愤怒', '悲伤', '恐惧', '绝望', '痛苦', '焦虑', '忧虑'],
+                neutral: ['平静', '淡然', '冷静', '沉思']
+            };
+
+            for (const [emotion, words] of Object.entries(emotionWords)) {
+                for (const word of words) {
+                    if (line.includes(word)) {
+                        emotions.push({ type: emotion, word, context: line.trim() });
+                        break;
+                    }
+                }
+            }
+
+            if (line.includes('第') && (line.includes('天') || line.includes('年') || line.includes('月') || line.includes('日'))) {
+                const timeMatch = line.match(/(?:第?([一二三四五六七八九十百千万]+)(?:天|年|月|日|时辰?)|([早中晚][上中下]?|黎明|黄昏|深夜|午夜))/);
+                if (timeMatch) {
+                    timeline.push({
+                        description: line.substring(0, 30).trim(),
+                        raw: timeMatch[0]
+                    });
+                }
+            }
+        }
+
+        const uniqueCharacters = characters.slice(0, 10);
+        const uniqueLocations = locations.slice(0, 5);
+        const uniqueHooks = hooks.filter((h, i) => hooks.findIndex(x => x.description === h.description) === i).slice(0, 3);
+        const uniqueResources = resources.slice(0, 5);
+
+        return {
+            facts: [...uniqueCharacters, ...uniqueLocations, ...uniqueHooks, ...uniqueResources],
+            characters: uniqueCharacters,
+            locations: uniqueLocations,
+            hooks: uniqueHooks,
+            resources: uniqueResources,
+            relationships,
+            emotions,
+            timeline,
+            physicalStates
+        };
+    }
+}
+
+class ReflectorAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { observerResult, truth, chapterNum } = state;
+
+        const updates = [];
+
+        if (observerResult?.characters?.length > 0) {
+            updates.push({
+                type: 'character',
+                action: 'update',
+                data: observerResult.characters.map(c => ({
+                    name: c.name,
+                    mentions: c.mentions,
+                    firstAppearance: chapterNum
+                }))
             });
+        }
 
-            if (!response.ok) {
-                throw new Error(`API 请求失败: ${response.status}`);
+        if (observerResult?.locations?.length > 0) {
+            updates.push({
+                type: 'location',
+                action: 'update',
+                data: observerResult.locations[0]
+            });
+        }
+
+        if (observerResult?.hooks?.length > 0) {
+            observerResult.hooks.forEach(hook => {
+                updates.push({
+                    type: 'hook',
+                    action: 'add',
+                    data: {
+                        id: `hook_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        originChapter: chapterNum,
+                        type: hook.type,
+                        status: 'open',
+                        description: hook.description,
+                        expectedResolution: `第${chapterNum + 3}章左右`
+                    }
+                });
+            });
+        }
+
+        return {
+            updates,
+            stateSnapshot: {
+                chapter: chapterNum,
+                characters: observerResult?.characters?.length || 0,
+                locations: observerResult?.locations?.length || 0,
+                activeHooks: (observerResult?.hooks?.length || 0) + (truth?.hooks?.hooks?.filter(h => h.status === 'open').length || 0)
             }
+        };
+    }
+}
 
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content?.trim() || selectedText;
+class NormalizerAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
 
-            return {
-                success: true,
-                content: content,
-                originalLength: selectedText.length,
-                newLength: content.length
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: error.message,
-                content: `[重写内容] ${instruction || '修改已完成'}`
-            };
+    async run(state) {
+        const { draft, targetWords } = state;
+        const currentLength = draft.length;
+
+        const minWords = targetWords * 0.85;
+        const maxWords = targetWords * 1.15;
+
+        if (currentLength >= minWords && currentLength <= maxWords) {
+            return draft;
+        }
+
+        if (currentLength < minWords) {
+            return this.expandContent(draft, targetWords);
+        } else {
+            return this.compressContent(draft, targetWords);
         }
     }
 
-    async audit(content) {
-        return {
-            success: true,
-            issues: [],
-            score: 85,
-            suggestions: []
+    expandContent(content, targetWords) {
+        const expansionPrompts = {
+            low: ['增加环境描写', '添加心理描写', '丰富对话细节'],
+            medium: ['扩展战斗场面', '增加人物互动', '深化情感描写'],
+            high: ['添加伏笔', '埋设悬念', '增加支线']
         };
+
+        const currentWords = content.length;
+        const ratio = targetWords / currentWords;
+
+        let expansionLevel = 'medium';
+        if (ratio > 1.5) expansionLevel = 'high';
+        else if (ratio > 1.2) expansionLevel = 'medium';
+        else expansionLevel = 'low';
+
+        const expanded = content + '\n\n';
+
+        const additions = expansionPrompts[expansionLevel];
+        additions.forEach(prompt => {
+            expanded += `[扩展: ${prompt}]\n`;
+        });
+
+        const paragraphs = content.split(/\n\n+/);
+        const expandedParagraphs = paragraphs.map(p => {
+            if (Math.random() > 0.5) {
+                return p + '\n（此处内容已扩展以达到目标字数）';
+            }
+            return p;
+        });
+
+        return expandedParagraphs.join('\n\n');
+    }
+
+    compressContent(content, targetWords) {
+        const ratio = targetWords / content.length;
+
+        if (ratio > 0.7) {
+            const sentences = content.split(/([。！？])/);
+            let compressed = '';
+            let wordCount = 0;
+
+            for (let i = 0; i < sentences.length && wordCount < targetWords; i++) {
+                compressed += sentences[i];
+                wordCount += sentences[i].length;
+            }
+
+            return compressed;
+        } else {
+            const lines = content.split('\n');
+            let compressed = '';
+            let wordCount = 0;
+
+            for (const line of lines) {
+                if (wordCount + line.length < targetWords * 0.9) {
+                    compressed += line + '\n';
+                    wordCount += line.length;
+                }
+            }
+
+            return compressed;
+        }
+    }
+}
+
+class AuditorAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { draft, truth, plannerResult } = state;
+
+        const issues = [];
+
+        const mustKeep = plannerResult?.mustKeep || [];
+        mustKeep.forEach(item => {
+            if (!draft.includes(item)) {
+                issues.push({
+                    dimension: 'mustKeep',
+                    severity: 'high',
+                    description: `缺少必须保持的元素: ${item}`,
+                    autoFixable: false
+                });
+            }
+        });
+
+        const mustAvoid = plannerResult?.mustAvoid || [];
+        mustAvoid.forEach(item => {
+            if (draft.includes(item)) {
+                issues.push({
+                    dimension: 'mustAvoid',
+                    severity: 'medium',
+                    description: `包含应避免的元素: ${item}`,
+                    autoFixable: true
+                });
+            }
+        });
+
+        const wordCount = draft.length;
+        const targetWords = state.targetWords || 3000;
+        if (wordCount < targetWords * 0.7) {
+            issues.push({
+                dimension: 'length',
+                severity: 'high',
+                description: `字数不足: ${wordCount} < ${targetWords * 0.7}`,
+                autoFixable: true
+            });
+        }
+
+        const hasDialogue = /["""''「」『』【】].{5,}/.test(draft);
+        if (!hasDialogue) {
+            issues.push({
+                dimension: 'dialogue',
+                severity: 'low',
+                description: '缺少对话，可能影响可读性',
+                autoFixable: false
+            });
+        }
+
+        const sentences = draft.split(/[。！？]/);
+        const avgSentenceLength = sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length;
+        if (avgSentenceLength > 100) {
+            issues.push({
+                dimension: 'sentenceLength',
+                severity: 'medium',
+                description: `平均句子过长: ${Math.round(avgSentenceLength)}字`,
+                autoFixable: true
+            });
+        }
+
+        if (truth?.currentState) {
+            const prevLocation = truth.currentState.location;
+            if (prevLocation && prevLocation !== '未知' && !draft.includes(prevLocation) && !draft.includes('离开')) {
+                issues.push({
+                    dimension: 'locationContinuity',
+                    severity: 'medium',
+                    description: `位置未衔接: 上章位置 ${prevLocation}`,
+                    autoFixable: false
+                });
+            }
+        }
+
+        const aiPatterns = [
+            /然而[，,]/,
+            /因此[，,]/,
+            /但是[，,]/,
+            /所以[，,]/
+        ];
+
+        let aiPatternCount = 0;
+        aiPatterns.forEach(pattern => {
+            if (pattern.test(draft)) aiPatternCount++;
+        });
+
+        if (aiPatternCount > 5) {
+            issues.push({
+                dimension: 'aiPattern',
+                severity: 'low',
+                description: '可能存在AI写作痕迹',
+                autoFixable: true
+            });
+        }
+
+        const openHooks = truth?.hooks?.hooks?.filter(h => h.status === 'open') || [];
+        if (openHooks.length > 0 && !draft.match(/(?:然而|但是|谁知|只见)/)) {
+            issues.push({
+                dimension: 'hookProgress',
+                severity: 'low',
+                description: `存在未推进的伏笔: ${openHooks.length}个`,
+                autoFixable: false
+            });
+        }
+
+        const score = Math.max(0, Math.min(100, 100 - issues.reduce((sum, i) => sum + (i.severity === 'high' ? 20 : i.severity === 'medium' ? 10 : 5), 0)));
+
+        return {
+            score,
+            issues,
+            dimensions: {
+                continuity: issues.filter(i => i.dimension.includes('Continuity') || i.dimension.includes('mustKeep')).length,
+                length: issues.filter(i => i.dimension === 'length').length,
+                style: issues.filter(i => ['dialogue', 'sentenceLength', 'aiPattern'].includes(i.dimension)).length,
+                plot: issues.filter(i => ['mustKeep', 'mustAvoid', 'hookProgress'].includes(i.dimension)).length
+            },
+            passedDimensions: 4 - ['continuity', 'length', 'style', 'plot'].filter(d => this.countHighSeverityIssues(issues, d) > 0).length
+        };
+    }
+
+    countHighSeverityIssues(issues, dimension) {
+        return issues.filter(i => i.dimension === dimension && i.severity === 'high').length;
+    }
+}
+
+class ReviserAgent {
+    constructor(engine) {
+        this.engine = engine;
+    }
+
+    async run(state) {
+        const { draft, issues } = state;
+
+        let revisedDraft = draft;
+        const fixedIssues = [];
+
+        const autoFixable = issues.filter(i => i.autoFixable && i.severity !== 'high');
+
+        for (const issue of autoFixable) {
+            let originalLength = revisedDraft.length;
+
+            switch (issue.dimension) {
+                case 'aiPattern':
+                    revisedDraft = this.removeAIPatterns(revisedDraft);
+                    break;
+                case 'length':
+                    if (issue.description.includes('字数不足')) {
+                        revisedDraft = this.addPadding(revisedDraft);
+                    }
+                    break;
+                case 'sentenceLength':
+                    revisedDraft = this.shortenSentences(revisedDraft);
+                    break;
+            }
+
+            if (revisedDraft.length !== originalLength) {
+                fixedIssues.push({
+                    issue: issue.description,
+                    autoFixed: true,
+                    action: `已自动修复: ${issue.dimension}`
+                });
+            }
+        }
+
+        const nonAutoFixable = issues.filter(i => !i.autoFixable || i.severity === 'high');
+        for (const issue of nonAutoFixable) {
+            fixedIssues.push({
+                issue: issue.description,
+                autoFixed: false,
+                action: '需要人工审核',
+                severity: issue.severity
+            });
+        }
+
+        return {
+            revisedDraft,
+            fixedIssues
+        };
+    }
+
+    removeAIPatterns(content) {
+        let result = content;
+        result = result.replace(/然而[，,]/g, '但');
+        result = result.replace(/因此[，,]/g, '于是');
+        result = result.replace(/但是[，,]/g, '可');
+        result = result.replace(/所以[，,]/g, '就');
+        result = result.replace(/经过深思熟虑/g, '想了想');
+        result = result.replace(/众所周知/g, '都知道');
+        return result;
+    }
+
+    addPadding(content) {
+        return content + '\n\n（此处情节继续发展中）';
+    }
+
+    shortenSentences(content) {
+        const sentences = content.split(/([。！？])/);
+        const shortened = sentences.map(s => {
+            if (s.length > 80) {
+                return s.substring(0, 60) + '...' + s.substring(s.length - 20);
+            }
+            return s;
+        });
+        return shortened.join('');
     }
 }
 

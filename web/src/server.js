@@ -279,27 +279,29 @@ app.post('/api/novels/:id/write', async (req, res) => {
         const chapterTitle = `第 ${chapterNum} 章`;
 
         const progressLog = [
-            '正在初始化 InkOS 写作引擎...',
+            '正在初始化 InkOS 多Agent写作管线...',
             `小说类型: ${novel.genre || 'xuanhuan'}`,
             `目标字数: ${targetWords}`,
-            `写作风格: ${style}`,
-            '正在调用 AI 模型...'
+            `写作风格: ${style}`
         ];
 
+        const truthFiles = new TruthFiles(novel.id, novel.projectPath);
         const engine = getInkOSEngine();
+        
         const result = await engine.write({
             title: novel.title,
             genre: novel.genre || 'xuanhuan',
             targetWords: parseInt(targetWords),
             style,
             lastContent: lastContent || getLastChapterSummary(novel),
-            chapterNum
+            chapterNum,
+            truthFiles
         });
 
         if (result.success) {
-            progressLog.push('AI 写作完成！');
+            progressLog.push(...result.progress);
             progressLog.push(`生成字数: ${result.wordCount}`);
-            progressLog.push(`使用模型: ${result.model}`);
+            progressLog.push(`审计评分: ${result.auditResult?.score || 0}/100`);
         } else {
             progressLog.push('使用备用生成模式');
         }
@@ -326,7 +328,8 @@ app.post('/api/novels/:id/write', async (req, res) => {
 
         res.json({
             ...chapter,
-            progressLog
+            progressLog,
+            auditResult: result.auditResult
         });
 
     } catch (error) {

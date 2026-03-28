@@ -3,4 +3,33 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --border-color: #e2e8f0;
+    
+    --header-bg: #ffffff;
+    --header-border: #e2e8f0;
+    --header-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    
+    --footer-bg: #ffffff;
+    --footer-border: #e2e8f0;
+    
+    --sidebar-bg: #ffffff;
+    --sidebar-item-hover: #f1f5f9;
+    --sidebar-item-active: #e2e8f0;
+    
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+    
+    --input-bg: #ffffff;
+    --input-border: #e2e8f0;
+    --input-focus-border: #6366f1;
+    
+    --textarea-bg: #ffffff;
+    --textarea-color: #1e293b;
+    
+    --select-bg: #ffffff;
+    --select-border: #e2e8f0;
+    --select-color: #1e293b;
+    
+    --scrollbar-track: #f8fafc;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
 }

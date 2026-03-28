@@ -1,25 +1,7 @@
-:root {
-    --sidebar-bg: #ffffff;
-    --sidebar-border: #e2e8f0;
-    --sidebar-item-hover: #f1f5f9;
-    --sidebar-item-active: #eef2ff;
-    --sidebar-text: #64748b;
-    --sidebar-text-active: var(--primary-color);
-}
-
-[data-theme="dark"] {
-    --sidebar-bg: #1e293b;
-    --sidebar-border: #334155;
-    --sidebar-item-hover: #334155;
-    --sidebar-item-active: #3730a3;
-    --sidebar-text: #94a3b8;
-    --sidebar-text-active: #a5b4fc;
-}
-
 .sidebar {
     grid-area: sidebar;
     background: var(--sidebar-bg);
-    border-right: 1px solid var(--sidebar-border);
+    border-right: 1px solid var(--border-color);
     padding: 16px 0;
     overflow-y: auto;
 }
@@ -37,7 +19,7 @@
     gap: 12px;
     padding: 12px 16px;
     border-radius: 8px;
-    color: var(--sidebar-text);
+    color: var(--text-secondary);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -55,7 +37,7 @@
 
 .sidebar-item.active {
     background: var(--sidebar-item-active);
-    color: var(--sidebar-text-active);
+    color: var(--primary-color);
 }
 
 .sidebar-item-icon {
@@ -69,7 +51,7 @@
 
 .sidebar-divider {
     height: 1px;
-    background: var(--sidebar-border);
+    background: var(--border-color);
     margin: 12px 16px;
 }
 
@@ -79,5 +61,5 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--sidebar-text);
+    color: var(--text-secondary);
 }

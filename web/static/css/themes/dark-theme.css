@@ -3,4 +3,192 @@
     --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
     --border-color: #334155;
+    
+    --header-bg: #1e293b;
+    --header-border: #334155;
+    --header-shadow: none;
+    
+    --footer-bg: #1e293b;
+    --footer-border: #334155;
+    
+    --sidebar-bg: #1e293b;
+    --sidebar-item-hover: #334155;
+    --sidebar-item-active: #334155;
+    
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    
+    --input-bg: #0f172a;
+    --input-border: #334155;
+    --input-focus-border: #6366f1;
+    
+    --textarea-bg: #0f172a;
+    --textarea-color: #f1f5f9;
+    
+    --select-bg: #0f172a;
+    --select-border: #334155;
+    --select-color: #f1f5f9;
+    
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
+    --scrollbar-thumb-hover: #64748b;
+}
+
+[data-theme="dark"] body {
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .header {
+    background: var(--header-bg);
+    border-bottom-color: var(--header-border);
+    box-shadow: var(--header-shadow);
+}
+
+[data-theme="dark"] .sidebar {
+    background: var(--sidebar-bg);
+}
+
+[data-theme="dark"] .sidebar-item:hover {
+    background: var(--sidebar-item-hover);
+}
+
+[data-theme="dark"] .sidebar-item.active {
+    background: var(--sidebar-item-active);
+}
+
+[data-theme="dark"] .footer {
+    background: var(--footer-bg);
+    border-top-color: var(--footer-border);
+}
+
+[data-theme="dark"] .card {
+    background: var(--card-bg);
+    border-color: var(--card-border);
+}
+
+[data-theme="dark"] .input-group input,
+[data-theme="dark"] .input-group select,
+[data-theme="dark"] .input-group textarea {
+    background: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .input-group input:focus,
+[data-theme="dark"] .input-group select:focus,
+[data-theme="dark"] .input-group textarea:focus {
+    border-color: var(--input-focus-border);
+}
+
+[data-theme="dark"] textarea,
+[data-theme="dark"] .editor-textarea {
+    background: var(--textarea-bg);
+    color: var(--textarea-color);
+}
+
+[data-theme="dark"] select {
+    background: var(--select-bg);
+    border-color: var(--select-border);
+    color: var(--select-color);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+[data-theme="dark"] .btn-outline {
+    background: transparent;
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-outline:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+[data-theme="dark"] .novel-manager,
+[data-theme="dark"] .chapter-editor,
+[data-theme="dark"] .dashboard {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .section-title,
+[data-theme="dark"] .editor-title {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .empty-state {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .toolbar {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .filter-btn {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .filter-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+[data-theme="dark"] .chapter-item {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .chapter-item:hover {
+    border-color: var(--primary-color);
+}
+
+[data-theme="dark"] .chapter-title {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .chapter-words {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .panel-header {
+    color: var(--text-secondary);
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .progress-bar,
+[data-theme="dark"] .progress-bar-large {
+    background: var(--border-color);
+}
+
+[data-theme="dark"] .status-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .status-value {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .writing-progress-overlay {
+    background: rgba(15, 23, 42, 0.95);
+}
+
+[data-theme="dark"] .progress-header {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .progress-text {
+    color: var(--text-secondary);
 }

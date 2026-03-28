@@ -6,6 +6,13 @@ const ThemeManager = {
         document.getElementById('theme-toggle')?.addEventListener('click', () => {
             this.toggle();
         });
+        
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'system' || !savedTheme) {
+                this.setTheme('system');
+            }
+        });
     },
     
     setTheme(theme) {
@@ -24,8 +31,13 @@ const ThemeManager = {
     },
     
     toggle() {
-        const current = document.documentElement.getAttribute('data-theme');
-        this.setTheme(current === 'dark' ? 'light' : 'dark');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        if (currentTheme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            this.setTheme(prefersDark ? 'light' : 'dark');
+        } else {
+            this.setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        }
     },
     
     get() {

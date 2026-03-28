@@ -110,6 +110,10 @@
                                 <option value="other">其他</option>
                             </select>
                         </div>
+                        <div class="input-group">
+                            <label>本章创作重点</label>
+                            <textarea id="chapter-focus" placeholder="输入本章的创作重点，如：重点写师徒矛盾、推进感情线..." rows="2"></textarea>
+                        </div>
                         <button class="btn btn-primary" style="width:100%;" onclick="App.aiWriteChapter()" id="btn-ai-write-sidebar">
                             开始 AI 续写
                         </button>
@@ -177,6 +181,8 @@
                         <div style="display:flex;flex-direction:column;gap:8px;">
                             <button class="btn btn-outline" style="width:100%;" onclick="App.saveChapter()">保存当前章节</button>
                             <button class="btn btn-outline" style="width:100%;" onclick="App.showAddChapterModal()">新建章节</button>
+                            <button class="btn btn-outline" style="width:100%;" onclick="App.showChapterAudit()">查看审计报告</button>
+                            <button class="btn btn-outline" style="width:100%;" onclick="App.showChapterLogs()">查看创作日志</button>
                         </div>
                     </div>
                 </div>
@@ -200,6 +206,22 @@
         <div class="modal-footer">
             <button class="btn btn-outline" onclick="App.closeAddChapterModal()">取消</button>
             <button class="btn btn-primary" onclick="App.addChapterFromModal()">创建</button>
+        </div>
+    </div>
+</div>
+
+<div id="review-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>章节审阅</h3>
+            <button class="btn-close" onclick="App.closeReviewModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="review-content">
+            <div class="loading">加载中...</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="App.approveAllChapters()">批量通过</button>
+            <button class="btn btn-primary" onclick="App.closeReviewModal()">关闭</button>
         </div>
     </div>
 </div>

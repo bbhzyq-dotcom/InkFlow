@@ -439,7 +439,7 @@ class PlannerAgent {
     }
 
     async run(state) {
-        const { genre, chapterNum, lastContent } = state;
+        const { genre, chapterNum, lastContent, truth } = state;
 
         const genreGoals = {
             xuanhuan: {
@@ -490,7 +490,33 @@ class PlannerAgent {
             mustAvoid: ['偏离主题', '节奏拖沓']
         };
 
-        return genreGoals[genre] || defaultGoal;
+        const baseGoal = genreGoals[genre] || defaultGoal;
+        
+        let worldSetting = '';
+        let characterList = [];
+        let plotOutline = '';
+        
+        if (truth?.currentState) {
+            worldSetting = truth.currentState.worldSetting || '';
+            plotOutline = truth.currentState.plotOutline || '';
+        }
+        
+        if (truth?.characterMatrix?.characterList) {
+            characterList = truth.characterMatrix.characterList;
+        }
+        
+        if (truth?.chapterSummaries?.plotOutline && !plotOutline) {
+            plotOutline = truth.chapterSummaries.plotOutline;
+        }
+
+        return {
+            ...baseGoal,
+            worldSetting,
+            characterList,
+            plotOutline,
+            customMustKeep: baseGoal.mustKeep,
+            customMustAvoid: baseGoal.mustAvoid
+        };
     }
 }
 
@@ -627,6 +653,21 @@ class WriterAgent {
             flowery: '辞藻华丽，描写细腻，意境悠远'
         };
 
+        let worldSettingInfo = '';
+        if (plannerResult?.worldSetting) {
+            worldSettingInfo = `\n世界观设定：\n${plannerResult.worldSetting}`;
+        }
+        
+        let characterInfo = '';
+        if (plannerResult?.characterList?.length > 0) {
+            characterInfo = `\n主要角色：\n${plannerResult.characterList.map(c => `- ${c.name}: ${c.description || c.traits || '待填充'}`).join('\n')}`;
+        }
+        
+        let plotInfo = '';
+        if (plannerResult?.plotOutline) {
+            plotInfo = `\n主线剧情：\n${plannerResult.plotOutline}`;
+        }
+
         const systemPrompt = `你是 InkOS 写作 Agent，专注于创作高质量网络小说。
 
 小说信息：
@@ -634,6 +675,9 @@ class WriterAgent {
 - 类型: ${genre}
 - 目标字数: ${targetWords}
 - 写作风格: ${stylePrompts[style] || stylePrompts.normal}
+${worldSettingInfo}
+${characterInfo}
+${plotInfo}
 
 本章意图：
 - 目标: ${plannerResult?.goal || '推进剧情'}
@@ -662,6 +706,7 @@ ${lastContent || '(新章节开始)'}
 3. 遵循章节大纲和规则栈
 4. 保持类型特色
 5. 避免AI写作痕迹
+6. 严格按照世界观设定和角色设定进行创作
 
 直接输出小说正文，不要有任何解释或说明。`;
 

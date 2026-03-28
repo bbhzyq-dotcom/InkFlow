@@ -44,6 +44,15 @@ function saveJSON(file, data) {
     writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+function readFileSafe(file, defaultValue = '') {
+    if (existsSync(file)) {
+        try {
+            return readFileSync(file, 'utf-8');
+        } catch { }
+    }
+    return defaultValue;
+}
+
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
@@ -155,7 +164,14 @@ app.get('/api/novels/:id', (req, res) => {
 });
 
 app.post('/api/novels', (req, res) => {
-    const { title, genre = 'xuanhuan', description = '' } = req.body;
+    const { 
+        title, 
+        genre = 'xuanhuan', 
+        description = '',
+        worldSetting = '',
+        characters = '',
+        plot = ''
+    } = req.body;
     
     if (!title) {
         return res.status(400).json({ error: '标题不能为空' });
@@ -170,22 +186,150 @@ app.post('/api/novels', (req, res) => {
     mkdirSync(join(projectPath, 'story', 'state'), { recursive: true });
 
     const truthFiles = new TruthFiles(id, projectPath);
-    truthFiles.saveManifest({ schemaVersion: 2, language: 'zh', lastAppliedChapter: 0, projectionVersion: 1, migrationWarnings: [] });
-    truthFiles.saveCurrentState({ chapter: 0, facts: [] });
+    truthFiles.saveManifest({ 
+        schemaVersion: 2, 
+        language: 'zh', 
+        lastAppliedChapter: 0, 
+        projectionVersion: 1, 
+        migrationWarnings: [] 
+    });
+    
+    truthFiles.saveCurrentState({ 
+        chapter: 0, 
+        facts: [],
+        worldSetting: worldSetting,
+        plotOutline: plot
+    });
+    
     truthFiles.saveHooks({ hooks: [] });
-    truthFiles.saveChapterSummaries({ rows: [] });
+    truthFiles.saveChapterSummaries({ 
+        rows: [],
+        plotOutline: plot
+    });
     truthFiles.saveParticleLedger({ entries: [] });
     truthFiles.saveSubplotBoard({ subplots: [] });
     truthFiles.saveEmotionalArcs({ arcs: [] });
-    truthFiles.saveCharacterMatrix({ encounters: [], relationships: [] });
+    
+    const characterList = parseCharacters(characters);
+    truthFiles.saveCharacterMatrix({ 
+        encounters: [], 
+        relationships: [],
+        characterList: characterList
+    });
 
-    writeFileSync(join(projectPath, 'inkos.json'), JSON.stringify({ title, genre, description, createdAt: new Date().toISOString() }), 'utf-8');
+    const genreNames = {
+        xuanhuan: '玄幻',
+        xianxia: '仙侠',
+        urban: '都市',
+        'sci-fi': '科幻',
+        horror: '恐怖',
+        romance: '言情',
+        litpg: '游戏',
+        other: '其他'
+    };
+
+    const genreName = genreNames[genre] || '其他';
+
+    const authorIntentContent = `# Author Intent 作者意图
+
+## 书籍信息
+- 书名：${title}
+- 类型：${genreName}
+- 简介：${description || '暂无'}
+
+## 创作目标
+${plot || '推进剧情，埋设伏笔，让读者欲罢不能'}
+
+## 长期方向
+- 保持主线清晰
+- 伏笔要有回收
+- 节奏把控得当
+`;
+
+    const storyBibleContent = `# Story Bible 世界观设定
+
+## 01_世界观
+${worldSetting || '一个充满机遇与挑战的世界'}
+
+## 02_主角
+${characterList.length > 0 ? characterList.map(c => `- ${c.name}：${c.description || c.traits || '待填充'}`).join('\n') : '- 主角设定待填充'}
+
+## 03_势力与人物
+${characters || '主要人物设定待填充'}
+
+## 04_地理与环境
+${worldSetting || '故事发生的世界地理环境待填充'}
+
+## 05_书名与简介
+书名：${title}
+简介：${description || '暂无'}
+`;
+
+    const bookRulesContent = `---
+numericalSystem: ${['xuanhuan', 'xianxia', 'litpg'].includes(genre) ? 'true' : 'false'}
+powerScaling: ${['xuanhuan', 'xianxia', 'litpg'].includes(genre) ? 'true' : 'false'}
+---
+# Book Rules 创作规则
+
+## 类型定位
+${genreName}题材
+
+## 数值体系
+${['xuanhuan', 'xianxia', 'litpg'].includes(genre) ? '有明确的战力/等级体系，需要追踪' : '无数值体系，无资源追踪'}
+
+## 创作禁区
+- 战力崩坏
+- 节奏拖沓
+- 逻辑漏洞
+- 人设崩塌
+
+## 写作要求
+- 保持类型特色（${genreName}）
+- 伏笔要有推进和回收
+- 对话要自然，符合人物性格
+- 减少AI写作痕迹
+`;
+
+    const currentFocusContent = `# Current Focus 当前焦点
+
+## 当前阶段
+书籍创建初期，专注于奠定世界观和开篇节奏。
+
+## 本阶段重点
+1. 介绍世界观和主要人物
+2. 建立故事的基本设定
+3. 埋下前期伏笔
+4. 吸引读者继续阅读
+
+## 待完成
+- 完善世界观细节
+- 深化角色性格
+- 规划主线剧情
+`;
+
+    writeFileSync(join(projectPath, 'inkos.json'), JSON.stringify({ 
+        title, 
+        genre, 
+        description, 
+        worldSetting,
+        characters,
+        plot,
+        createdAt: new Date().toISOString() 
+    }), 'utf-8');
+
+    writeFileSync(join(projectPath, 'story', 'author_intent.md'), authorIntentContent, 'utf-8');
+    writeFileSync(join(projectPath, 'story', 'story_bible.md'), storyBibleContent, 'utf-8');
+    writeFileSync(join(projectPath, 'story', 'book_rules.md'), bookRulesContent, 'utf-8');
+    writeFileSync(join(projectPath, 'story', 'current_focus.md'), currentFocusContent, 'utf-8');
 
     const novel = {
         id,
         title,
         genre,
         description,
+        worldSetting,
+        characters,
+        plot,
         status: 'writing',
         chapterCount: 0,
         wordCount: 0,
@@ -200,6 +344,29 @@ app.post('/api/novels', (req, res) => {
     
     res.json(novel);
 });
+
+function parseCharacters(text) {
+    if (!text) return [];
+    const characters = [];
+    const lines = text.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+        const match = line.match(/^([^（(]+)[（(](.+?)[)）]?[,，]?\s*(.*)$/);
+        if (match) {
+            characters.push({
+                name: match[1].trim(),
+                description: match[2].trim(),
+                traits: match[3]?.trim() || ''
+            });
+        } else if (line.trim()) {
+            characters.push({
+                name: line.trim(),
+                description: '',
+                traits: ''
+            });
+        }
+    }
+    return characters;
+}
 
 app.put('/api/novels/:id', (req, res) => {
     const novels = loadJSON(NOVELS_FILE, []);
@@ -362,7 +529,7 @@ app.post('/api/novels/:id/write', async (req, res) => {
     }
 
     const novel = novels[idx];
-    const { targetWords = 3000, style = 'normal', lastContent = '' } = req.body;
+    const { targetWords = 3000, style = 'normal', lastContent = '', chapterFocus = '' } = req.body;
 
     try {
         const chapterNum = (novel.chapters?.length || 0) + 1;
@@ -372,9 +539,18 @@ app.post('/api/novels/:id/write', async (req, res) => {
         progressLog.push(`小说: ${novel.title}`);
         progressLog.push(`类型: ${novel.genre}`);
         progressLog.push(`目标字数: ${targetWords}`);
+        if (chapterFocus) {
+            progressLog.push(`本章重点: ${chapterFocus}`);
+        }
 
         const truthFiles = new TruthFiles(novel.id, novel.projectPath);
         const engine = getInkOSEngine();
+        
+        if (chapterFocus) {
+            const currentFocusContent = readFileSafe(join(novel.projectPath, 'story', 'current_focus.md'), '');
+            const newFocus = `# Current Focus 当前焦点\n\n## 章节 ${chapterNum} 创作重点\n\n${chapterFocus}\n\n---\n\n${currentFocusContent}`;
+            writeFileSync(join(novel.projectPath, 'story', 'current_focus.md'), newFocus, 'utf-8');
+        }
         
         const result = await engine.write({
             title: novel.title,
@@ -383,6 +559,7 @@ app.post('/api/novels/:id/write', async (req, res) => {
             style,
             lastContent: lastContent || getLastChapterContent(novel),
             chapterNum,
+            chapterFocus,
             truthFiles,
             onProgress: (msg) => progressLog.push(msg)
         });
@@ -580,6 +757,53 @@ app.get('/api/novels/:id/truth-files', (req, res) => {
     });
 });
 
+app.get('/api/novels/:id/control-docs', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novel = novels.find(n => n.id === req.params.id);
+    
+    if (!novel) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const storyDir = join(novel.projectPath, 'story');
+    
+    const docs = {
+        authorIntent: readFileSafe(join(storyDir, 'author_intent.md'), ''),
+        storyBible: readFileSafe(join(storyDir, 'story_bible.md'), ''),
+        bookRules: readFileSafe(join(storyDir, 'book_rules.md'), ''),
+        currentFocus: readFileSafe(join(storyDir, 'current_focus.md'), '')
+    };
+
+    res.json(docs);
+});
+
+app.put('/api/novels/:id/control-docs', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novel = novels.find(n => n.id === req.params.id);
+    
+    if (!novel) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const { authorIntent, storyBible, bookRules, currentFocus } = req.body;
+    const storyDir = join(novel.projectPath, 'story');
+
+    if (authorIntent !== undefined) {
+        writeFileSync(join(storyDir, 'author_intent.md'), authorIntent, 'utf-8');
+    }
+    if (storyBible !== undefined) {
+        writeFileSync(join(storyDir, 'story_bible.md'), storyBible, 'utf-8');
+    }
+    if (bookRules !== undefined) {
+        writeFileSync(join(storyDir, 'book_rules.md'), bookRules, 'utf-8');
+    }
+    if (currentFocus !== undefined) {
+        writeFileSync(join(storyDir, 'current_focus.md'), currentFocus, 'utf-8');
+    }
+
+    res.json({ success: true });
+});
+
 app.get('/api/novels/:id/snapshots', (req, res) => {
     const novels = loadJSON(NOVELS_FILE, []);
     const novel = novels.find(n => n.id === req.params.id);
@@ -635,6 +859,73 @@ app.post('/api/novels/:id/rollback', (req, res) => {
     }
 
     res.json(result);
+});
+
+app.get('/api/novels/:id/review', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novel = novels.find(n => n.id === req.params.id);
+    
+    if (!novel) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const chapters = novel.chapters || [];
+    const reviewList = chapters.map(ch => ({
+        id: ch.id,
+        number: ch.number,
+        title: ch.title,
+        wordCount: ch.wordCount,
+        status: ch.status || 'draft',
+        auditScore: ch.auditResult?.score || null,
+        issueCount: ch.auditResult?.issues?.length || 0,
+        approved: ch.status === 'approved'
+    }));
+
+    res.json({
+        novel: { id: novel.id, title: novel.title },
+        chapters: reviewList,
+        stats: {
+            total: reviewList.length,
+            draft: reviewList.filter(c => c.status === 'draft').length,
+            approved: reviewList.filter(c => c.approved).length,
+            needsReview: reviewList.filter(c => c.issueCount > 0 && !c.approved).length
+        }
+    });
+});
+
+app.post('/api/novels/:id/approve-all', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const idx = novels.findIndex(n => n.id === req.params.id);
+    
+    if (idx === -1) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const chapters = novels[idx].chapters || [];
+    chapters.forEach(ch => {
+        ch.status = 'approved';
+    });
+    
+    saveJSON(NOVELS_FILE, novels);
+    res.json({ success: true, approved: chapters.length });
+});
+
+app.post('/api/novels/:id/approve/:chapterId', (req, res) => {
+    const novels = loadJSON(NOVELS_FILE, []);
+    const novelIdx = novels.findIndex(n => n.id === req.params.id);
+    
+    if (novelIdx === -1) {
+        return res.status(404).json({ error: '小说不存在' });
+    }
+
+    const chapterIdx = novels[novelIdx].chapters.findIndex(c => c.id === req.params.chapterId);
+    if (chapterIdx === -1) {
+        return res.status(404).json({ error: '章节不存在' });
+    }
+
+    novels[novelIdx].chapters[chapterIdx].status = 'approved';
+    saveJSON(NOVELS_FILE, novels);
+    res.json({ success: true });
 });
 
 app.post('/api/novels/:id/import', async (req, res) => {

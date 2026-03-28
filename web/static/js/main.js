@@ -222,6 +222,9 @@ const App = {
         document.getElementById('new-novel-title').value = '';
         document.getElementById('new-novel-genre').value = 'xuanhuan';
         document.getElementById('new-novel-description').value = '';
+        document.getElementById('new-novel-world').value = '';
+        document.getElementById('new-novel-characters').value = '';
+        document.getElementById('new-novel-plot').value = '';
     },
     
     async createNovelFromModal() {
@@ -233,16 +236,72 @@ const App = {
         
         const genre = document.getElementById('new-novel-genre').value;
         const description = document.getElementById('new-novel-description').value.trim();
+        const worldSetting = document.getElementById('new-novel-world').value.trim();
+        const characters = document.getElementById('new-novel-characters').value.trim();
+        const plot = document.getElementById('new-novel-plot').value.trim();
         
         try {
-            const novel = await ApiClient.novels.create({ title, genre, description });
+            const novel = await ApiClient.novels.create({ 
+                title, 
+                genre, 
+                description,
+                worldSetting,
+                characters,
+                plot
+            });
             this.novels.push(novel);
             this.renderDashboard();
             this.renderNovels();
             this.closeCreateNovelModal();
-            alert(`小说「${novel.title}」创建成功！`);
+            alert(`小说「${novel.title}」创建成功！\n\n请在编辑页面完善更多设定，真相文件会自动更新。`);
         } catch (error) {
             alert('创建失败：' + error.message);
+        }
+    },
+    
+    showImportModal() {
+        document.getElementById('import-modal').style.display = 'flex';
+        document.getElementById('import-title').value = '';
+        document.getElementById('import-content').value = '';
+    },
+    
+    closeImportModal() {
+        document.getElementById('import-modal').style.display = 'none';
+    },
+    
+    async importNovel() {
+        const title = document.getElementById('import-title').value.trim();
+        if (!title) {
+            alert('请输入小说标题');
+            return;
+        }
+        
+        const content = document.getElementById('import-content').value.trim();
+        if (!content) {
+            alert('请输入小说内容');
+            return;
+        }
+        
+        const genre = document.getElementById('import-genre').value;
+        
+        try {
+            const novel = await ApiClient.novels.create({ title, genre });
+            
+            const response = await fetch(`/api/novels/${novel.id}/import`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            
+            const result = await response.json();
+            
+            this.novels.push(novel);
+            this.renderDashboard();
+            this.renderNovels();
+            this.closeImportModal();
+            alert(`导入成功！\n小说「${novel.title}」\n导入章节：${result.imported || 0} 个`);
+        } catch (error) {
+            alert('导入失败：' + error.message);
         }
     },
     
@@ -403,11 +462,14 @@ const App = {
         this.isWriting = true;
         this.showWritingProgress(true);
         
+        const chapterFocus = document.getElementById('chapter-focus')?.value?.trim() || '';
+        
         try {
             const result = await ApiClient.novels.write(this.currentNovel.id, {
                 targetWords,
                 style,
-                lastContent
+                lastContent,
+                chapterFocus
             });
             
             if (result.progressLog && result.progressLog.length > 0) {
@@ -470,6 +532,139 @@ const App = {
         const logContainer = document.getElementById('progress-log');
         if (logContainer) {
             logContainer.innerHTML = logs.map(log => `<div class="log-line">${log}</div>`).join('');
+        }
+    },
+    
+    async showChapterAudit() {
+        if (!this.currentNovel || !this.currentChapter) {
+            alert('请先选择一个章节');
+            return;
+        }
+        
+        const auditResult = this.currentChapter.auditResult;
+        if (!auditResult) {
+            alert('暂无审计报告，请先进行 AI 写作');
+            return;
+        }
+        
+        let message = `审计评分：${auditResult.score || 0}/100\n\n`;
+        
+        if (auditResult.issues && auditResult.issues.length > 0) {
+            message += `发现问题：${auditResult.issues.length} 个\n\n`;
+            auditResult.issues.slice(0, 5).forEach((issue, i) => {
+                message += `${i + 1}. [${issue.type || '问题'}] ${issue.description || issue}\n`;
+            });
+            if (auditResult.issues.length > 5) {
+                message += `\n...还有 ${auditResult.issues.length - 5} 个问题`;
+            }
+        } else {
+            message += '未发现问题，审计通过！';
+        }
+        
+        alert(message);
+    },
+    
+    async showChapterLogs() {
+        if (!this.currentNovel || !this.currentChapter) {
+            alert('请先选择一个章节');
+            return;
+        }
+        
+        const progressLog = this.currentChapter.progressLog;
+        if (!progressLog || progressLog.length === 0) {
+            alert('暂无创作日志');
+            return;
+        }
+        
+        const logWindow = window.open('', '_blank', 'width=600,height=400');
+        if (logWindow) {
+            logWindow.document.write(`
+                <html>
+                <head><title>创作日志 - ${this.currentChapter.title}</title>
+                <style>
+                    body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+                    .log-line { padding: 4px 0; border-bottom: 1px solid #333; }
+                    h2 { color: #fff; }
+                </style>
+                </head>
+                <body>
+                <h2>创作日志 - ${this.currentChapter.title}</h2>
+                ${progressLog.map(log => `<div class="log-line">${log}</div>`).join('\n')}
+                </body>
+                </html>
+            `);
+            logWindow.document.close();
+        }
+    },
+    
+    async showReviewModal() {
+        if (!this.currentNovel) {
+            alert('请先选择一本小说');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/novels/${this.currentNovel.id}/review`);
+            const data = await response.json();
+            
+            const content = document.getElementById('review-content');
+            if (!content) return;
+            
+            if (data.chapters.length === 0) {
+                content.innerHTML = '<p>暂无章节</p>';
+                return;
+            }
+            
+            content.innerHTML = `
+                <div style="margin-bottom:16px;">
+                    <strong>统计：</strong>
+                    总章节：${data.stats.total} |
+                    待审阅：${data.stats.draft} |
+                    已通过：${data.stats.approved} |
+                    有问题：${data.stats.needsReview}
+                </div>
+                <div style="max-height:400px;overflow-y:auto;">
+                    ${data.chapters.map(ch => `
+                        <div style="padding:12px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px;">
+                            <span style="width:60px;">第${ch.number}章</span>
+                            <span style="flex:1;">${ch.wordCount}字</span>
+                            ${ch.auditScore !== null ? `<span style="color:${ch.auditScore >= 80 ? 'var(--success-color)' : ch.auditScore >= 60 ? 'var(--warning-color)' : 'var(--danger-color)'}">审计:${ch.auditScore}/100</span>` : '<span style="color:var(--text-secondary)">未审计</span>'}
+                            ${ch.issueCount > 0 ? `<span style="color:var(--danger-color)">${ch.issueCount}个问题</span>` : ''}
+                            <span style="padding:4px 8px;background:${ch.approved ? 'var(--success-color)' : 'var(--warning-color)'};color:white;border-radius:4px;font-size:12px;">
+                                ${ch.approved ? '已通过' : '待审阅'}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            document.getElementById('review-modal').style.display = 'flex';
+        } catch (error) {
+            alert('加载审阅列表失败：' + error.message);
+        }
+    },
+    
+    closeReviewModal() {
+        document.getElementById('review-modal').style.display = 'none';
+    },
+    
+    async approveAllChapters() {
+        if (!this.currentNovel) return;
+        
+        if (!confirm('确定要通过所有章节吗？')) return;
+        
+        try {
+            const response = await fetch(`/api/novels/${this.currentNovel.id}/approve-all`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                alert(`已通过 ${result.approved} 个章节`);
+                this.closeReviewModal();
+            }
+        } catch (error) {
+            alert('批量通过失败：' + error.message);
         }
     },
     

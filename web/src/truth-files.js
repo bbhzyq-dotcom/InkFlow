@@ -20,13 +20,30 @@ export class TruthFiles {
 
     loadTruthFiles() {
         return {
+            manifest: this.loadManifest(),
             currentState: this.loadCurrentState(),
             hooks: this.loadHooks(),
             chapterSummaries: this.loadChapterSummaries(),
-            characterMatrix: this.loadCharacterMatrix(),
             particleLedger: this.loadParticleLedger(),
             subplotBoard: this.loadSubplotBoard(),
-            emotionalArcs: this.loadEmotionalArcs()
+            emotionalArcs: this.loadEmotionalArcs(),
+            characterMatrix: this.loadCharacterMatrix()
+        };
+    }
+
+    loadManifest() {
+        const path = join(this.stateDir, 'manifest.json');
+        if (existsSync(path)) {
+            try {
+                return JSON.parse(readFileSync(path, 'utf-8'));
+            } catch { }
+        }
+        return {
+            schemaVersion: 2,
+            language: 'zh',
+            lastAppliedChapter: 0,
+            projectionVersion: 1,
+            migrationWarnings: []
         };
     }
 
@@ -39,17 +56,7 @@ export class TruthFiles {
         }
         return {
             chapter: 0,
-            location: '未知',
-            protagonist: {
-                name: '主角',
-                status: '初始',
-                currentGoal: '待定',
-                constraints: '无'
-            },
-            enemies: [],
-            knownTruths: [],
-            currentConflict: '待定',
-            anchor: ''
+            facts: []
         };
     }
 
@@ -70,17 +77,7 @@ export class TruthFiles {
                 return JSON.parse(readFileSync(path, 'utf-8'));
             } catch { }
         }
-        return { summaries: [] };
-    }
-
-    loadCharacterMatrix() {
-        const path = join(this.stateDir, 'character_matrix.json');
-        if (existsSync(path)) {
-            try {
-                return JSON.parse(readFileSync(path, 'utf-8'));
-            } catch { }
-        }
-        return { characters: [] };
+        return { rows: [] };
     }
 
     loadParticleLedger() {
@@ -90,7 +87,7 @@ export class TruthFiles {
                 return JSON.parse(readFileSync(path, 'utf-8'));
             } catch { }
         }
-        return { hardCap: 10000, currentTotal: 0, entries: [] };
+        return { entries: [] };
     }
 
     loadSubplotBoard() {
@@ -113,6 +110,22 @@ export class TruthFiles {
         return { arcs: [] };
     }
 
+    loadCharacterMatrix() {
+        const path = join(this.stateDir, 'character_matrix.json');
+        if (existsSync(path)) {
+            try {
+                return JSON.parse(readFileSync(path, 'utf-8'));
+            } catch { }
+        }
+        return { encounters: [], relationships: [] };
+    }
+
+    saveManifest(data) {
+        this.ensureStateDir();
+        const path = join(this.stateDir, 'manifest.json');
+        writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
     saveCurrentState(data) {
         this.ensureStateDir();
         const path = join(this.stateDir, 'current_state.json');
@@ -128,12 +141,6 @@ export class TruthFiles {
     saveChapterSummaries(data) {
         this.ensureStateDir();
         const path = join(this.stateDir, 'chapter_summaries.json');
-        writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
-    }
-
-    saveCharacterMatrix(data) {
-        this.ensureStateDir();
-        const path = join(this.stateDir, 'character_matrix.json');
         writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
     }
 
@@ -155,141 +162,513 @@ export class TruthFiles {
         writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
     }
 
-    async analyzePartialRewrite(params) {
-        const { chapterContent, startPos, endPos, chapterNum, newContent } = params;
-        
-        const beforePart = chapterContent.substring(0, startPos);
-        const afterPart = chapterContent.substring(endPos);
-        
-        const analysis = await this.analyzeContent(newContent);
-        
+    saveCharacterMatrix(data) {
+        this.ensureStateDir();
+        const path = join(this.stateDir, 'character_matrix.json');
+        writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    getTruthFilesSummary() {
+        const truth = this.loadTruthFiles();
         return {
-            beforePart,
-            afterPart,
-            analysis,
-            chapterNum
+            currentChapter: truth.currentState.chapter,
+            manifest: truth.manifest,
+            activeHooks: truth.hooks.hooks.filter(h => h.status === 'open').length,
+            totalHooks: truth.hooks.hooks.length,
+            chaptersTracked: truth.chapterSummaries.rows.length,
+            characters: [...new Set(truth.currentState.facts.map(f => f.subject))].length,
+            subplots: truth.subplotBoard.subplots.length,
+            emotionalArcs: truth.emotionalArcs.arcs.length,
+            particleEntries: truth.particleLedger.entries.length
         };
     }
 
-    async analyzeContent(content) {
-        const analysis = {
-            characters: [],
-            locations: [],
-            events: [],
-            hooks: [],
-            resources: [],
-            emotional: 'neutral'
+    async analyzeChapter(chapterNum, content, previousChapterContent = '') {
+        const facts = this.extractFacts(content, chapterNum);
+        const hooks = this.extractHooks(content, chapterNum);
+        const characters = this.extractCharacters(content, chapterNum);
+        const locations = this.extractLocations(content, chapterNum);
+        const emotions = this.extractEmotions(content, chapterNum);
+        const resources = this.extractResources(content, chapterNum);
+        const timeline = this.extractTimeline(content, chapterNum);
+
+        const relationships = this.extractRelationships(content, chapterNum);
+        const subplotActivity = this.detectSubplotActivity(content, chapterNum);
+        const stateChanges = this.detectStateChanges(content, previousChapterContent, chapterNum);
+
+        return {
+            facts,
+            hooks,
+            characters,
+            locations,
+            emotions,
+            resources,
+            timeline,
+            relationships,
+            subplotActivity,
+            stateChanges,
+            chapterType: this.classifyChapterType(content, hooks)
         };
-
-        const patterns = {
-            characterName: /[【《]?([^\s【】《》，。！？：；""''（）\[\]【】]+)[】》]?(?:说道|问道|答道|说|问|答|道|认为|觉得|想|知道|明白)/g,
-            location: /(?:在|来到|前往|走进|冲出|逃离)([^\s，。！？：；""''（）]+)(?:之地|之处|之中|之上|之下|之内|之外|之境|山脉|森林|城池|村庄|山洞|宫殿|大殿|广场|街道|房间|室内|室外)/g,
-            newEvent: /(?:突然|忽然|霎时|顿时|顷刻|转眼)(.+?)(?:发生|出现|降临|爆发|来临)/g,
-            hook: /(?:原来|竟然|殊不知|出乎意料|谁知|只见|但见|只见得)/g,
-            resource: /(?:获得|得到|失去|消耗|拥有|持有|掌握)(?:了)?([^\s，。！？：；""''（）]+)(?:之力|之术|之法|之能|秘籍|功法|法宝|灵药|仙丹|神兵)/g
-        };
-
-        let match;
-        while ((match = patterns.characterName.exec(content)) !== null) {
-            const name = match[1].trim();
-            if (name.length > 1 && name.length < 10) {
-                analysis.characters.push({ name, mentioned: true });
-            }
-        }
-
-        while ((match = patterns.location.exec(content)) !== null) {
-            const loc = match[1].trim();
-            if (loc.length > 1) {
-                analysis.locations.push({ name: loc, type: 'scene' });
-            }
-        }
-
-        while ((match = patterns.newEvent.exec(content)) !== null) {
-            const event = match[1].trim();
-            if (event.length > 5) {
-                analysis.events.push({ description: event, impact: 'high' });
-            }
-        }
-
-        if (patterns.hook.test(content)) {
-            analysis.hooks.push({ type: 'foreshadow', description: '发现伏笔' });
-        }
-
-        while ((match = patterns.resource.exec(content)) !== null) {
-            const resource = match[1].trim();
-            if (resource.length > 1) {
-                analysis.resources.push({ name: resource, change: 'acquired' });
-            }
-        }
-
-        if (content.includes('愤怒') || content.includes('悲伤') || content.includes('恐惧')) {
-            analysis.emotional = 'negative';
-        } else if (content.includes('喜悦') || content.includes('兴奋') || content.includes('欣慰')) {
-            analysis.emotional = 'positive';
-        }
-
-        return analysis;
     }
 
-    async cascadeUpdate(params) {
-        const { chapterNum, analysis, existingTruth, cascadeFromChapter } = params;
-        
+    extractFacts(content, chapterNum) {
+        const facts = [];
+        const patterns = [
+            /([【《]?[^\s【】《》，。！？：；""''（）]+[】》]?)是(?:一个?|了)([^\s，。！？：；""''（）]{2,10})/,
+            /([【《]?[^\s【】《》，。！？：；""''（）]+[】》]?)在([^\s，。！？：；""''（）]{2,15})/,
+            /([【《]?[^\s【】《》，。！？：；""''（）]+[】》]?)拥有([^\s，。！？：；""''（）]{2,10})/,
+            /([【《]?[^\s【】《》，。！？：；""''（）]+[】》]?)获得(?:了)?([^\s，。！？：；""''（）]{2,10})/,
+        ];
+
+        for (const pattern of patterns) {
+            let match;
+            const regex = new RegExp(pattern.source, 'g');
+            while ((match = regex.exec(content)) !== null) {
+                if (match[1] && match[1].length > 1 && match[1].length < 15) {
+                    facts.push({
+                        subject: match[1].trim(),
+                        predicate: this.inferPredicate(pattern.source),
+                        object: match[2] ? match[2].trim() : '',
+                        validFromChapter: chapterNum,
+                        validUntilChapter: null,
+                        sourceChapter: chapterNum
+                    });
+                }
+            }
+        }
+
+        return facts;
+    }
+
+    inferPredicate(patternSource) {
+        if (patternSource.includes('是')) return 'is_a';
+        if (patternSource.includes('在')) return 'located_at';
+        if (patternSource.includes('拥有')) return 'owns';
+        if (patternSource.includes('获得')) return 'acquired';
+        return 'related_to';
+    }
+
+    extractHooks(content, chapterNum) {
+        const hooks = [];
+        const hookPatterns = [
+            /(?:原来|竟然|殊不知|出乎意料|谁知)([^\n]{10,50})/,
+            /(?:但是|然而|可是)([^\n]{10,50})/,
+            /(?:就在这时|就在此时|忽然)([^\n]{10,50})/,
+            /伏笔[：:]([^\n]{5,30})/,
+            /悬念[：:]([^\n]{5,30})/,
+            /疑问[：:]([^\n]{5,30})/,
+            /(?:这个秘密|这个真相|这个疑问)([^\n]{5,30})/,
+        ];
+
+        for (const pattern of hookPatterns) {
+            const match = content.match(pattern);
+            if (match && match[1]) {
+                hooks.push({
+                    hookId: `hook_${chapterNum}_${hooks.length}_${Date.now().toString(36)}`,
+                    startChapter: chapterNum,
+                    type: this.classifyHookType(match[1]),
+                    status: 'open',
+                    lastAdvancedChapter: chapterNum,
+                    expectedPayoff: `第${chapterNum + 3}章左右`,
+                    notes: match[1].trim()
+                });
+            }
+        }
+
+        return hooks;
+    }
+
+    classifyHookType(text) {
+        if (text.includes('秘密') || text.includes('真相')) return 'mystery';
+        if (text.includes('实力') || text.includes('突破')) return 'power_breakthrough';
+        if (text.includes('身份')) return 'identity';
+        if (text.includes('宝物') || text.includes('秘籍')) return 'treasure';
+        return 'general';
+    }
+
+    extractCharacters(content, chapterNum) {
+        const characters = [];
+        const patterns = [
+            /([【《]?[^\s【】《》，。！？：；""''（）]{2,8})(?:说道|问道|答道|说|道|自语|想|认为|觉得)/g,
+            /([【《]?[^\s【】《》，。！？：；""''（）]{2,8})(?:的|是|在|和|与)(?:一个?|某种)/g,
+        ];
+
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                const name = match[1]?.trim();
+                if (name && name.length > 1 && name.length < 10 && !this.isStopWord(name)) {
+                    const existing = characters.find(c => c.name === name);
+                    if (existing) {
+                        existing.mentions = (existing.mentions || 1) + 1;
+                    } else {
+                        characters.push({ name, mentions: 1, firstAppearance: chapterNum });
+                    }
+                }
+            }
+        }
+
+        return characters.slice(0, 15);
+    }
+
+    isStopWord(word) {
+        const stopWords = ['一个', '某种', '这个', '那个', '怎么', '什么', '为什么', '如何', '哪里', '何时', '何人'];
+        return stopWords.includes(word);
+    }
+
+    extractLocations(content, chapterNum) {
+        const locations = [];
+        const patterns = [
+            /(?:在|来到|前往|走进|冲出|逃离)([^\s，。！？：；""''（）]{2,12})(?:之地|之处|之中|之上|之下|之内|之外|之境|山脉|森林|城池|村庄|小镇|山洞|宫殿|大殿|广场|街道|房间)/g,
+            /(?:在|来到|前往)([^\s，。！？：；""''（）]{2,8})(?:修炼|闭关|疗伤|休息|等待)/g,
+            /(?:来到|抵达|到了)([^\s，。！？：；""''（）]{2,8})/g,
+        ];
+
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                const loc = match[1]?.trim();
+                if (loc && loc.length > 1 && loc.length < 15) {
+                    const existing = locations.find(l => l.name === loc);
+                    if (existing) {
+                        existing.mentions++;
+                    } else {
+                        locations.push({ name: loc, mentions: 1, firstAppearance: chapterNum });
+                    }
+                }
+            }
+        }
+
+        return locations.slice(0, 10);
+    }
+
+    extractEmotions(content, chapterNum) {
+        const emotions = [];
+        const emotionMap = {
+            '喜悦': 'joy', '兴奋': 'excitement', '欣慰': 'relief', '高兴': 'happiness',
+            '开心': 'happiness', '激动': 'excitement', '期待': 'anticipation',
+            '愤怒': 'anger', '悲伤': 'sadness', '恐惧': 'fear', '绝望': 'despair',
+            '痛苦': 'pain', '焦虑': 'anxiety', '忧虑': 'worry',
+            '平静': 'calm', '淡然': 'indifference', '冷静': 'composure', '沉思': 'contemplation'
+        };
+
+        for (const [word, emotion] of Object.entries(emotionMap)) {
+            const count = (content.match(new RegExp(word, 'g')) || []).length;
+            if (count > 0) {
+                emotions.push({ character: 'protagonist', emotion, intensity: Math.min(count, 5), chapter: chapterNum });
+            }
+        }
+
+        return emotions;
+    }
+
+    extractResources(content, chapterNum) {
+        const resources = [];
+        const patterns = [
+            /(?:获得|得到|习得|领悟)(?:了)?([^\s，。！？：；""''（）]{2,10})(?:之力|之术|之法|之能|功法|秘籍|灵药|仙丹|神兵|法宝)/g,
+            /(?:消耗|失去|用尽)(?:了)?([^\s，。！？：；""''（）]{2,10})/g,
+        ];
+
+        const changeTypes = ['acquired', 'consumed'];
+
+        for (let i = 0; i < patterns.length; i++) {
+            const pattern = patterns[i];
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                const resource = match[1]?.trim();
+                if (resource && resource.length > 1) {
+                    resources.push({
+                        name: resource,
+                        change: changeTypes[i],
+                        chapter: chapterNum,
+                        context: match[0]
+                    });
+                }
+            }
+        }
+
+        return resources;
+    }
+
+    extractTimeline(content, chapterNum) {
+        const timeline = [];
+        const patterns = [
+            /(?:第?([一二三四五六七八九十百千万]+)(?:天|年|月|日|时辰?))/g,
+            /(?:([早中晚][上中下]?|黎明|黄昏|深夜|午夜))/g,
+            /(?:时间?流逝|转眼|片刻之后|不久)([^\n]{0,20})/g,
+        ];
+
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                if (match[1] || match[2]) {
+                    timeline.push({
+                        description: match[0],
+                        raw: match[1] || match[2],
+                        chapter: chapterNum
+                    });
+                }
+            }
+        }
+
+        return timeline;
+    }
+
+    extractRelationships(content, chapterNum) {
+        const relationships = [];
+        const patterns = [
+            /([^\s，。！？：；""''（）]{2,6})(?:与|和)([^\s，。！？：；""''（）]{2,6})(?:成为|结为|是)(?:好友|兄弟|姐妹|师徒|恋人|夫妻|敌人|对手)/g,
+            /([^\s，。！？：；""''（）]{2,6})(?:对|向|跟)([^\s，。！？：；""''（）]{2,6})(?:说|道|表白)/g,
+        ];
+
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                if (match[1] && match[2]) {
+                    relationships.push({
+                        from: match[1].trim(),
+                        to: match[2].trim(),
+                        type: 'interaction',
+                        chapter: chapterNum,
+                        context: match[0]
+                    });
+                }
+            }
+        }
+
+        return relationships;
+    }
+
+    detectSubplotActivity(content, chapterNum) {
+        const activities = [];
+        const subplotIndicators = [
+            { pattern: /(?:支线|A线|B线|C线)([^\n]{5,20})/, type: 'subplot_mentioned' },
+            { pattern: /(?:与此同时|另外|另一边)([^\n]{5,30})/, type: 'parallel_development' },
+            { pattern: /(?:伏笔|悬念)(?:回收|揭示)([^\n]{5,20})/, type: 'subplot_progress' },
+        ];
+
+        for (const { pattern, type } of subplotIndicators) {
+            if (pattern.test(content)) {
+                const match = content.match(pattern);
+                if (match) {
+                    activities.push({
+                        type,
+                        description: match[1]?.trim() || match[0],
+                        chapter: chapterNum
+                    });
+                }
+            }
+        }
+
+        return activities;
+    }
+
+    detectStateChanges(content, previousContent, chapterNum) {
+        const changes = [];
+
+        if (!previousContent) {
+            return changes;
+        }
+
+        const currentLocs = this.extractLocations(content, chapterNum).map(l => l.name);
+        const prevLocs = previousContent ? this.extractLocations(previousContent, 0).map(l => l.name) : [];
+
+        for (const loc of currentLocs) {
+            if (!prevLocs.includes(loc)) {
+                changes.push({ type: 'location_change', from: prevLocs[0] || 'unknown', to: loc, chapter: chapterNum });
+            }
+        }
+
+        const currentChars = this.extractCharacters(content, chapterNum).map(c => c.name);
+        const prevChars = previousContent ? this.extractCharacters(previousContent, 0).map(c => c.name) : [];
+
+        for (const char of currentChars) {
+            if (!prevChars.includes(char)) {
+                changes.push({ type: 'new_character', character: char, chapter: chapterNum });
+            }
+        }
+
+        return changes;
+    }
+
+    classifyChapterType(content, hooks) {
+        const hasBattle = /(?:战斗|对决|交手|厮杀|比拼)/.test(content);
+        const hasClimax = /(?:高潮|爆发|逆转|转折)/.test(content);
+        const hasSetup = /(?:伏笔|铺垫|布局)/.test(content);
+        const hasPayoff = /(?:揭晓|揭示|回收|真相大白)/.test(content);
+        const hasDialogue = /[""''「」『』【】].{10,}/.test(content);
+
+        if (hasBattle) return 'battle';
+        if (hasClimax) return 'climax';
+        if (hasPayoff) return 'payoff';
+        if (hasSetup) return 'setup';
+        if (hasDialogue && content.length < 2000) return 'dialogue';
+        return 'development';
+    }
+
+    async cascadeUpdate(chapterNum, analysis, fromChapter = 1) {
         const updates = {
-            currentState: { ...existingTruth.currentState },
-            hooks: { hooks: [...existingTruth.hooks.hooks] },
-            chapterSummaries: { summaries: [...existingTruth.chapterSummaries.summaries] },
-            characterMatrix: { characters: [...existingTruth.characterMatrix.characters] },
-            particleLedger: { ...existingTruth.particleLedger },
-            subplotBoard: { subplots: [...existingTruth.subplotBoard.subplots] },
-            emotionalArcs: { arcs: [...existingTruth.emotionalArcs.arcs] }
+            currentState: { ...this.loadCurrentState() },
+            hooks: { ...this.loadHooks() },
+            chapterSummaries: { ...this.loadChapterSummaries() },
+            particleLedger: { ...this.loadParticleLedger() },
+            subplotBoard: { ...this.loadSubplotBoard() },
+            emotionalArcs: { ...this.loadEmotionalArcs() },
+            characterMatrix: { ...this.loadCharacterMatrix() }
         };
 
         updates.currentState.chapter = chapterNum;
-        updates.currentState.protagonist.currentGoal = analysis.events.length > 0 
-            ? analysis.events[0].description 
-            : updates.currentState.protagonist.currentGoal;
+        updates.currentState.facts = [
+            ...updates.currentState.facts.filter(f => f.validUntilChapter === null || f.validUntilChapter >= fromChapter),
+            ...analysis.facts.map(f => ({ ...f, sourceChapter: chapterNum }))
+        ];
 
         if (analysis.locations.length > 0) {
-            updates.currentState.location = analysis.locations[0].name;
-        }
-
-        if (analysis.hooks.length > 0) {
-            analysis.hooks.forEach(hook => {
-                const existingHook = updates.hooks.hooks.find(h => 
-                    h.originChapter === chapterNum && h.description === hook.description
-                );
-                if (!existingHook) {
-                    updates.hooks.hooks.push({
-                        id: `hook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        originChapter: chapterNum,
-                        type: hook.type,
-                        status: 'open',
-                        description: hook.description,
-                        expectedResolution: '待定'
-                    });
-                }
-            });
-        }
-
-        const existingSummary = updates.chapterSummaries.summaries.find(s => s.chapter === chapterNum);
-        if (existingSummary) {
-            existingSummary.events = analysis.events.map(e => e.description);
-            existingSummary.locations = analysis.locations.map(l => l.name);
-        } else {
-            updates.chapterSummaries.summaries.push({
-                chapter: chapterNum,
-                title: `第 ${chapterNum} 章`,
-                events: analysis.events.map(e => e.description),
-                locations: analysis.locations.map(l => l.name),
-                wordCount: 0
-            });
-        }
-
-        for (let i = cascadeFromChapter; i < chapterNum; i++) {
-            const summary = updates.chapterSummaries.summaries.find(s => s.chapter === i);
-            if (summary) {
-                summary.status = 'affected';
+            const lastLoc = analysis.locations[analysis.locations.length - 1];
+            if (!updates.currentState.facts.some(f => f.subject === lastLoc.name && f.predicate === 'located_at')) {
+                updates.currentState.facts.push({
+                    subject: lastLoc.name,
+                    predicate: 'located_at',
+                    object: lastLoc.name,
+                    validFromChapter: chapterNum,
+                    validUntilChapter: null,
+                    sourceChapter: chapterNum
+                });
             }
+        }
+
+        for (const hook of analysis.hooks) {
+            const existing = updates.hooks.hooks.find(h => h.notes === hook.notes);
+            if (!existing) {
+                updates.hooks.hooks.push(hook);
+            } else {
+                existing.lastAdvancedChapter = chapterNum;
+            }
+        }
+
+        for (const h of updates.hooks.hooks) {
+            if (h.status === 'open' && h.lastAdvancedChapter < chapterNum - 5) {
+                h.status = 'stale';
+            }
+        }
+
+        const existingSummaryIdx = updates.chapterSummaries.rows.findIndex(r => r.chapter === chapterNum);
+        const newSummary = {
+            chapter: chapterNum,
+            title: `第${chapterNum}章`,
+            characters: analysis.characters.map(c => c.name).join(', '),
+            events: analysis.hooks.map(h => h.notes).slice(0, 3).join('; '),
+            stateChanges: analysis.stateChanges.map(c => `${c.type}:${c.to || c.character}`).join(', '),
+            hookActivity: analysis.hooks.map(h => h.notes).join('; '),
+            mood: analysis.emotions.map(e => e.emotion).join(', ') || 'neutral',
+            chapterType: analysis.chapterType
+        };
+
+        if (existingSummaryIdx >= 0) {
+            updates.chapterSummaries.rows[existingSummaryIdx] = newSummary;
+        } else {
+            updates.chapterSummaries.rows.push(newSummary);
+            updates.chapterSummaries.rows.sort((a, b) => a.chapter - b.chapter);
+        }
+
+        for (const resource of analysis.resources) {
+            const existingEntry = updates.particleLedger.entries.find(e => e.name === resource.name);
+            if (existingEntry) {
+                if (resource.change === 'acquired') {
+                    existingEntry.currentAmount = (existingEntry.currentAmount || 0) + 1;
+                } else if (resource.change === 'consumed') {
+                    existingEntry.currentAmount = Math.max(0, (existingEntry.currentAmount || 0) - 1);
+                }
+                existingEntry.lastChangeChapter = chapterNum;
+                existingEntry.history.push({
+                    chapter: chapterNum,
+                    change: resource.change,
+                    note: resource.context
+                });
+            } else {
+                updates.particleLedger.entries.push({
+                    name: resource.name,
+                    initialAmount: 1,
+                    currentAmount: resource.change === 'acquired' ? 1 : 0,
+                    lastChangeChapter: chapterNum,
+                    history: [{
+                        chapter: chapterNum,
+                        change: resource.change,
+                        note: resource.context
+                    }]
+                });
+            }
+        }
+
+        for (const activity of analysis.subplotActivity) {
+            const existingSubplot = updates.subplotBoard.subplots.find(s => 
+                s.description === activity.description || s.type === activity.type
+            );
+            if (existingSubplot) {
+                existingSubplot.lastAdvancedChapter = chapterNum;
+                existingSubplot.status = 'active';
+            } else {
+                updates.subplotBoard.subplots.push({
+                    id: `subplot_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    description: activity.description,
+                    type: activity.type,
+                    startChapter: chapterNum,
+                    lastAdvancedChapter: chapterNum,
+                    status: 'active'
+                });
+            }
+        }
+
+        for (const h of updates.subplotBoard.subplots) {
+            if (h.lastAdvancedChapter < chapterNum - 5) {
+                h.status = 'stagnant';
+            }
+        }
+
+        for (const emotion of analysis.emotions) {
+            const existingArc = updates.emotionalArcs.arcs.find(a => a.character === emotion.character);
+            if (existingArc) {
+                existingArc.points.push({
+                    chapter: chapterNum,
+                    emotion: emotion.emotion,
+                    intensity: emotion.intensity
+                });
+                if (existingArc.points.length > 10) {
+                    existingArc.points = existingArc.points.slice(-10);
+                }
+            } else {
+                updates.emotionalArcs.arcs.push({
+                    character: emotion.character,
+                    points: [{
+                        chapter: chapterNum,
+                        emotion: emotion.emotion,
+                        intensity: emotion.intensity
+                    }]
+                });
+            }
+        }
+
+        for (const rel of analysis.relationships) {
+            const existing = updates.characterMatrix.relationships.find(r =>
+                r.from === rel.from && r.to === rel.to
+            );
+            if (existing) {
+                existing.lastInteraction = chapterNum;
+                existing.interactionCount = (existing.interactionCount || 1) + 1;
+            } else {
+                updates.characterMatrix.relationships.push({
+                    ...rel,
+                    lastInteraction: chapterNum,
+                    interactionCount: 1
+                });
+            }
+
+            updates.characterMatrix.encounters.push({
+                from: rel.from,
+                to: rel.to,
+                chapter: chapterNum,
+                context: rel.context
+            });
         }
 
         return updates;
@@ -299,24 +678,14 @@ export class TruthFiles {
         this.saveCurrentState(updates.currentState);
         this.saveHooks(updates.hooks);
         this.saveChapterSummaries(updates.chapterSummaries);
-        this.saveCharacterMatrix(updates.characterMatrix);
         this.saveParticleLedger(updates.particleLedger);
         this.saveSubplotBoard(updates.subplotBoard);
         this.saveEmotionalArcs(updates.emotionalArcs);
-    }
+        this.saveCharacterMatrix(updates.characterMatrix);
 
-    getTruthFilesSummary() {
-        const truth = this.loadTruthFiles();
-        return {
-            currentChapter: truth.currentState.chapter,
-            location: truth.currentState.location,
-            protagonist: truth.currentState.protagonist,
-            activeHooks: truth.hooks.hooks.filter(h => h.status === 'open').length,
-            totalHooks: truth.hooks.hooks.length,
-            chaptersTracked: truth.chapterSummaries.summaries.length,
-            characters: truth.characterMatrix.characters.length,
-            subplots: truth.subplotBoard.subplots.length
-        };
+        const manifest = this.loadManifest();
+        manifest.lastAppliedChapter = updates.currentState.chapter;
+        this.saveManifest(manifest);
     }
 }
 

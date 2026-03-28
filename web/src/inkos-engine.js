@@ -749,129 +749,386 @@ class NormalizerAgent {
 class AuditorAgent {
     constructor(engine) {
         this.engine = engine;
+        
+        this.dimensions = {
+            1: { name: 'OOC检查', desc: '检查角色是否偏离性格底色' },
+            2: { name: '时间线检查', desc: '检查时间线是否一致' },
+            3: { name: '设定冲突', desc: '检查是否与世界观设定冲突' },
+            4: { name: '战力崩坏', desc: '检查战力等级是否合理' },
+            5: { name: '数值检查', desc: '检查数值是否一致' },
+            6: { name: '伏笔检查', desc: '检查伏笔是否推进' },
+            7: { name: '节奏检查', desc: '检查节奏是否合适' },
+            8: { name: '文风检查', desc: '检查文风是否一致' },
+            9: { name: '信息越界', desc: '检查角色是否知道不该知道的信息' },
+            10: { name: '词汇疲劳', desc: '检查高疲劳词使用情况' },
+            11: { name: '利益链断裂', desc: '检查角色动机是否合理' },
+            12: { name: '年代考据', desc: '检查年代细节是否准确' },
+            13: { name: '配角降智', desc: '检查配角是否被强行降智' },
+            14: { name: '配角工具人化', desc: '检查配角是否有独立人格' },
+            15: { name: '爽点虚化', desc: '检查爽点是否有效落地' },
+            16: { name: '台词失真', desc: '检查台词是否符合人物性格' },
+            17: { name: '流水账', desc: '检查是否像流水账' },
+            18: { name: '知识库污染', desc: '检查是否污染读者知识' },
+            19: { name: '视角一致性', desc: '检查视角切换是否合适' },
+            20: { name: '段落等长', desc: '检查段落长度是否单调' },
+            21: { name: '套话密度', desc: '检查套话是否过多' },
+            22: { name: '公式化转折', desc: '检查转折是否公式化' },
+            23: { name: '列表式结构', desc: '检查是否列表式写作' },
+            24: { name: '支线停滞', desc: '检查支线是否停滞' },
+            25: { name: '弧线平坦', desc: '检查情感弧线是否平坦' },
+            26: { name: '节奏单调', desc: '检查节奏是否单调' },
+            27: { name: '敏感词检查', desc: '检查敏感词' },
+            28: { name: '正传事件冲突', desc: '检查是否与正传冲突' },
+            29: { name: '未来信息泄露', desc: '检查是否泄露未来信息' },
+            30: { name: '世界规则跨书一致性', desc: '检查世界规则一致性' },
+            31: { name: '番外伏笔隔离', desc: '检查伏笔是否隔离' },
+            32: { name: '读者期待管理', desc: '检查读者期待' },
+            33: { name: '大纲偏离检测', desc: '检查是否偏离大纲' },
+            34: { name: '角色还原度', desc: '检查角色还原度' },
+            35: { name: '世界规则遵守', desc: '检查世界规则遵守情况' },
+            36: { name: '关系动态', desc: '检查关系发展是否合理' },
+            37: { name: '正典事件一致性', desc: '检查正典事件一致性' }
+        };
+        
+        this.aiTells = ['仿佛', '不禁', '宛如', '竟然', '忽然', '猛地', '然而', '因此', '所以', '但是'];
+        this.fatigueWords = ['突然', '就在这时', '只见', '却见', '只见得', '没想到', '难以置信'];
     }
 
     async run(state) {
-        const { draft, truth, plannerResult } = state;
-
+        const { draft, truth, plannerResult, chapterNum } = state;
         const issues = [];
+        const chapter = chapterNum || (truth?.currentState?.chapter || 0) + 1;
 
         const mustKeep = plannerResult?.mustKeep || [];
-        mustKeep.forEach(item => {
+        for (const item of mustKeep) {
             if (!draft.includes(item)) {
                 issues.push({
-                    dimension: 'mustKeep',
-                    severity: 'high',
-                    description: `缺少必须保持的元素: ${item}`,
+                    dimension: 33,
+                    dimensionName: '大纲偏离检测',
+                    severity: 'critical',
+                    description: `大纲要求必须包含「${item}」，但章节中未出现`,
+                    suggestion: '在章节中加入该元素',
                     autoFixable: false
                 });
             }
-        });
+        }
 
         const mustAvoid = plannerResult?.mustAvoid || [];
-        mustAvoid.forEach(item => {
+        for (const item of mustAvoid) {
             if (draft.includes(item)) {
                 issues.push({
-                    dimension: 'mustAvoid',
-                    severity: 'medium',
-                    description: `包含应避免的元素: ${item}`,
+                    dimension: 8,
+                    dimensionName: '文风检查',
+                    severity: 'critical',
+                    description: `大纲要求避免「${item}」，但章节中出现了`,
+                    suggestion: '移除或改写相关内容',
                     autoFixable: true
                 });
             }
-        });
+        }
 
         const wordCount = draft.length;
         const targetWords = state.targetWords || 3000;
         if (wordCount < targetWords * 0.7) {
             issues.push({
-                dimension: 'length',
-                severity: 'high',
-                description: `字数不足: ${wordCount} < ${targetWords * 0.7}`,
+                dimension: 5,
+                dimensionName: '数值检查',
+                severity: 'critical',
+                description: `字数严重不足: ${wordCount} < ${Math.round(targetWords * 0.7)}`,
+                suggestion: '扩充内容或拆分为多章',
+                autoFixable: true
+            });
+        } else if (wordCount < targetWords * 0.85) {
+            issues.push({
+                dimension: 5,
+                dimensionName: '数值检查',
+                severity: 'warning',
+                description: `字数略少: ${wordCount} < ${Math.round(targetWords * 0.85)}`,
+                suggestion: '适当扩充内容',
+                autoFixable: true
+            });
+        } else if (wordCount > targetWords * 1.3) {
+            issues.push({
+                dimension: 5,
+                dimensionName: '数值检查',
+                severity: 'warning',
+                description: `字数超出过多: ${wordCount} > ${Math.round(targetWords * 1.3)}`,
+                suggestion: '精简内容',
                 autoFixable: true
             });
         }
 
-        const hasDialogue = /["""''「」『』【】].{5,}/.test(draft);
-        if (!hasDialogue) {
+        if (truth?.currentState?.facts) {
+            const currentFacts = truth.currentState.facts.filter(f => !f.validUntilChapter || f.validUntilChapter >= chapter - 1);
+            for (const fact of currentFacts) {
+                if (fact.predicate === 'acquired' || fact.predicate === 'owns') {
+                    if (draft.includes(`丢失${fact.object}`) || draft.includes(`失去了${fact.object}`)) {
+                        issues.push({
+                            dimension: 3,
+                            dimensionName: '设定冲突',
+                            severity: 'critical',
+                            description: `角色获得了「${fact.object}」但在章节中丢失了`,
+                            suggestion: '保持物品状态一致',
+                            autoFixable: false
+                        });
+                    }
+                }
+            }
+        }
+
+        const openHooks = truth?.hooks?.hooks?.filter(h => h.status === 'open') || [];
+        const staleHooks = openHooks.filter(h => h.lastAdvancedChapter < chapter - 3);
+        if (staleHooks.length > 0) {
             issues.push({
-                dimension: 'dialogue',
-                severity: 'low',
-                description: '缺少对话，可能影响可读性',
+                dimension: 6,
+                dimensionName: '伏笔检查',
+                severity: 'warning',
+                description: `有 ${staleHooks.length} 个伏笔超过3章未推进: ${staleHooks.map(h => h.notes?.slice(0, 10)).join(', ')}`,
+                suggestion: '在近期章节中推进伏笔',
                 autoFixable: false
             });
         }
 
-        const sentences = draft.split(/[。！？]/);
-        const avgSentenceLength = sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length;
-        if (avgSentenceLength > 100) {
+        for (const hook of openHooks.slice(0, 5)) {
+            if (hook.startChapter < chapter - 1 && draft.includes(hook.notes?.slice(0, 20) || '')) {
+                if (!/然而|但是|谁知|只见/.test(draft)) {
+                    issues.push({
+                        dimension: 6,
+                        dimensionName: '伏笔检查',
+                        severity: 'info',
+                        description: `伏笔「${hook.notes?.slice(0, 15)}」被提及但未有效推进`,
+                        suggestion: '增加伏笔的进展或回收',
+                        autoFixable: false
+                    });
+                }
+            }
+        }
+
+        const dialogueMatches = draft.match(/[""''「」『』【】].{10,}/g) || [];
+        const dialogueRatio = dialogueMatches.join('').length / wordCount;
+        if (dialogueRatio < 0.1) {
             issues.push({
-                dimension: 'sentenceLength',
-                severity: 'medium',
-                description: `平均句子过长: ${Math.round(avgSentenceLength)}字`,
+                dimension: 16,
+                dimensionName: '台词失真',
+                severity: 'warning',
+                description: `对话占比过低: ${Math.round(dialogueRatio * 100)}%`,
+                suggestion: '增加对话使人物更鲜活',
+                autoFixable: false
+            });
+        } else if (dialogueRatio > 0.6) {
+            issues.push({
+                dimension: 17,
+                dimensionName: '流水账',
+                severity: 'warning',
+                description: `对话占比过高: ${Math.round(dialogueRatio * 100)}%`,
+                suggestion: '增加叙述和描写',
+                autoFixable: false
+            });
+        }
+
+        let aiTellCount = 0;
+        for (const tell of this.aiTells) {
+            const matches = (draft.match(new RegExp(tell, 'g')) || []).length;
+            aiTellCount += matches;
+        }
+        if (aiTellCount > wordCount / 500) {
+            issues.push({
+                dimension: 10,
+                dimensionName: '词汇疲劳',
+                severity: 'warning',
+                description: `AI写作特征词使用过多: ${aiTellCount}次`,
+                suggestion: '使用更多样化的表达',
                 autoFixable: true
             });
         }
 
-        if (truth?.currentState) {
-            const prevLocation = truth.currentState.location;
-            if (prevLocation && prevLocation !== '未知' && !draft.includes(prevLocation) && !draft.includes('离开')) {
+        for (const word of this.fatigueWords) {
+            const count = (draft.match(new RegExp(word, 'g')) || []).length;
+            if (count > wordCount / 300) {
                 issues.push({
-                    dimension: 'locationContinuity',
-                    severity: 'medium',
-                    description: `位置未衔接: 上章位置 ${prevLocation}`,
+                    dimension: 21,
+                    dimensionName: '套话密度',
+                    severity: 'warning',
+                    description: `高频词「${word}」使用过多: ${count}次`,
+                    suggestion: '使用更丰富的词汇',
+                    autoFixable: true
+                });
+            }
+        }
+
+        const sentences = draft.split(/[。！？]/);
+        const sentenceLengths = sentences.filter(s => s.length > 0).map(s => s.length);
+        const avgLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
+        const shortSentences = sentenceLengths.filter(l => l < 10).length;
+        if (avgLength > 80) {
+            issues.push({
+                dimension: 20,
+                dimensionName: '段落等长',
+                severity: 'warning',
+                description: `平均句子过长: ${Math.round(avgLength)}字`,
+                suggestion: '拆分长句',
+                autoFixable: true
+            });
+        }
+        if (shortSentences > sentenceLengths.length * 0.3) {
+            issues.push({
+                dimension: 20,
+                dimensionName: '段落等长',
+                severity: 'warning',
+                description: `短句过多: ${shortSentences}/${sentenceLengths.length}`,
+                suggestion: '增加句子长度变化',
+                autoFixable: false
+            });
+        }
+
+        const subplots = truth?.subplotBoard?.subplots || [];
+        const stagnantSubplots = subplots.filter(s => s.status !== 'resolved' && s.lastAdvancedChapter < chapter - 5);
+        if (stagnantSubplots.length > 0 && subplots.length > 0) {
+            issues.push({
+                dimension: 24,
+                dimensionName: '支线停滞',
+                severity: 'warning',
+                description: `有 ${stagnantSubplots.length} 个支线超过5章未推进`,
+                suggestion: '在近期章节中推进支线',
+                autoFixable: false
+            });
+        }
+
+        const emotionalArcs = truth?.emotionalArcs?.arcs || [];
+        const flatArcs = emotionalArcs.filter(arc => {
+            if (arc.points.length < 3) return false;
+            const recentPoints = arc.points.slice(-3);
+            const emotions = recentPoints.map(p => p.emotion);
+            return emotions.every(e => e === emotions[0]);
+        });
+        if (flatArcs.length > 0) {
+            issues.push({
+                dimension: 25,
+                dimensionName: '弧线平坦',
+                severity: 'info',
+                description: `角色 ${flatArcs.map(a => a.character).join(', ')} 的情感弧线过于平坦`,
+                suggestion: '增加情感变化',
+                autoFixable: false
+            });
+        }
+
+        if (truth?.chapterSummaries?.rows) {
+            const recentTypes = truth.chapterSummaries.rows.slice(-5).map(r => r.chapterType);
+            let consecutiveSame = 1;
+            for (let i = 1; i < recentTypes.length; i++) {
+                if (recentTypes[i] === recentTypes[i - 1]) {
+                    consecutiveSame++;
+                } else {
+                    consecutiveSame = 1;
+                }
+            }
+            if (consecutiveSame >= 3) {
+                issues.push({
+                    dimension: 26,
+                    dimensionName: '节奏单调',
+                    severity: 'warning',
+                    description: `连续${consecutiveSame}章类型相同: ${recentTypes[recentTypes.length - 1]}`,
+                    suggestion: '增加章节类型变化',
                     autoFixable: false
                 });
             }
         }
 
-        const aiPatterns = [
-            /然而[，,]/,
-            /因此[，,]/,
-            /但是[，,]/,
-            /所以[，,]/
-        ];
-
-        let aiPatternCount = 0;
-        aiPatterns.forEach(pattern => {
-            if (pattern.test(draft)) aiPatternCount++;
-        });
-
-        if (aiPatternCount > 5) {
-            issues.push({
-                dimension: 'aiPattern',
-                severity: 'low',
-                description: '可能存在AI写作痕迹',
-                autoFixable: true
-            });
+        const locations = this.extractLocations(draft);
+        const prevLocation = truth?.currentState?.facts?.find(f => f.predicate === 'located_at');
+        if (prevLocation && prevLocation.object && prevLocation.object !== '未知') {
+            if (!locations.includes(prevLocation.object) && !draft.includes('离开') && !draft.includes('前往')) {
+                issues.push({
+                    dimension: 2,
+                    dimensionName: '时间线检查',
+                    severity: 'warning',
+                    description: `角色在上章位于「${prevLocation.object}」但本章未提及位置变化`,
+                    suggestion: '说明位置变化或提及当前地点',
+                    autoFixable: false
+                });
+            }
         }
 
-        const openHooks = truth?.hooks?.hooks?.filter(h => h.status === 'open') || [];
-        if (openHooks.length > 0 && !draft.match(/(?:然而|但是|谁知|只见)/)) {
-            issues.push({
-                dimension: 'hookProgress',
-                severity: 'low',
-                description: `存在未推进的伏笔: ${openHooks.length}个`,
-                autoFixable: false
-            });
+        const chapters = truth?.chapterSummaries?.rows || [];
+        const recentChapters = chapters.slice(-3);
+        if (recentChapters.length >= 3) {
+            const hasClimax = recentChapters.some(c => c.chapterType === 'climax' || c.chapterType === 'payoff');
+            if (!hasClimax && chapters.length > 5) {
+                issues.push({
+                    dimension: 32,
+                    dimensionName: '读者期待管理',
+                    severity: 'info',
+                    description: '连续3章以上没有高潮或爽点',
+                    suggestion: '在近期章节中加入高潮',
+                    autoFixable: false
+                });
+            }
         }
 
-        const score = Math.max(0, Math.min(100, 100 - issues.reduce((sum, i) => sum + (i.severity === 'high' ? 20 : i.severity === 'medium' ? 10 : 5), 0)));
+        const score = this.calculateScore(issues);
 
         return {
             score,
             issues,
-            dimensions: {
-                continuity: issues.filter(i => i.dimension.includes('Continuity') || i.dimension.includes('mustKeep')).length,
-                length: issues.filter(i => i.dimension === 'length').length,
-                style: issues.filter(i => ['dialogue', 'sentenceLength', 'aiPattern'].includes(i.dimension)).length,
-                plot: issues.filter(i => ['mustKeep', 'mustAvoid', 'hookProgress'].includes(i.dimension)).length
-            },
-            passedDimensions: 4 - ['continuity', 'length', 'style', 'plot'].filter(d => this.countHighSeverityIssues(issues, d) > 0).length
+            dimensions: this.groupIssuesByDimension(issues),
+            passedDimensions: Object.keys(this.dimensions).length - new Set(issues.map(i => i.dimension)).size,
+            totalDimensions: Object.keys(this.dimensions).length,
+            summary: this.generateSummary(issues, score)
         };
     }
 
-    countHighSeverityIssues(issues, dimension) {
-        return issues.filter(i => i.dimension === dimension && i.severity === 'high').length;
+    extractLocations(content) {
+        const locations = [];
+        const patterns = [
+            /(?:在|来到|前往|走进)([^\s，。！？：；""''（）]{2,10})(?:之地|之处|之中|之上|之下|山脉|森林|城池|村庄|小镇|山洞|宫殿)/g,
+        ];
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                if (match[1]) locations.push(match[1].trim());
+            }
+        }
+        return [...new Set(locations)];
+    }
+
+    calculateScore(issues) {
+        let deductions = 0;
+        for (const issue of issues) {
+            switch (issue.severity) {
+                case 'critical': deductions += 15; break;
+                case 'warning': deductions += 7; break;
+                case 'info': deductions += 2; break;
+            }
+        }
+        return Math.max(0, Math.min(100, 100 - deductions));
+    }
+
+    groupIssuesByDimension(issues) {
+        const grouped = {};
+        for (const issue of issues) {
+            if (!grouped[issue.dimension]) {
+                grouped[issue.dimension] = {
+                    name: issue.dimensionName,
+                    issues: [],
+                    severity: issue.severity
+                };
+            }
+            grouped[issue.dimension].issues.push(issue);
+            if (issue.severity === 'critical') {
+                grouped[issue.dimension].severity = 'critical';
+            } else if (issue.severity === 'warning' && grouped[issue.dimension].severity !== 'critical') {
+                grouped[issue.dimension].severity = 'warning';
+            }
+        }
+        return grouped;
+    }
+
+    generateSummary(issues, score) {
+        const critical = issues.filter(i => i.severity === 'critical').length;
+        const warnings = issues.filter(i => i.severity === 'warning').length;
+        const infos = issues.filter(i => i.severity === 'info').length;
+        
+        return `审计完成。评分: ${score}/100。发现 ${critical} 个严重问题, ${warnings} 个警告, ${infos} 个提示。`;
     }
 }
 
@@ -886,22 +1143,31 @@ class ReviserAgent {
         let revisedDraft = draft;
         const fixedIssues = [];
 
-        const autoFixable = issues.filter(i => i.autoFixable && i.severity !== 'high');
+        const autoFixable = issues.filter(i => i.autoFixable && i.severity !== 'critical');
 
         for (const issue of autoFixable) {
             let originalLength = revisedDraft.length;
 
             switch (issue.dimension) {
-                case 'aiPattern':
-                    revisedDraft = this.removeAIPatterns(revisedDraft);
+                case 10:
+                case 21:
+                    revisedDraft = this.removeFatigueWords(revisedDraft);
                     break;
-                case 'length':
+                case 20:
+                    revisedDraft = this.shortenLongSentences(revisedDraft);
+                    break;
+                case 5:
                     if (issue.description.includes('字数不足')) {
-                        revisedDraft = this.addPadding(revisedDraft);
+                        revisedDraft = this.expandContent(revisedDraft);
+                    } else if (issue.description.includes('超出')) {
+                        revisedDraft = this.trimContent(revisedDraft, issue.description);
                     }
                     break;
-                case 'sentenceLength':
-                    revisedDraft = this.shortenSentences(revisedDraft);
+                case 8:
+                    revisedDraft = this.removeForbiddenPhrases(revisedDraft, issue.description);
+                    break;
+                case 15:
+                    revisedDraft = this.enhancePayoff(revisedDraft);
                     break;
             }
 
@@ -909,52 +1175,106 @@ class ReviserAgent {
                 fixedIssues.push({
                     issue: issue.description,
                     autoFixed: true,
-                    action: `已自动修复: ${issue.dimension}`
+                    dimension: issue.dimensionName,
+                    action: '已自动修复'
                 });
             }
         }
 
-        const nonAutoFixable = issues.filter(i => !i.autoFixable || i.severity === 'high');
+        const nonAutoFixable = issues.filter(i => !i.autoFixable || i.severity === 'critical');
         for (const issue of nonAutoFixable) {
             fixedIssues.push({
                 issue: issue.description,
                 autoFixed: false,
-                action: '需要人工审核',
+                dimension: issue.dimensionName,
+                action: issue.suggestion,
                 severity: issue.severity
             });
         }
 
         return {
             revisedDraft,
-            fixedIssues
+            fixedIssues,
+            summary: `修订完成。自动修复 ${fixedIssues.filter(f => f.autoFixed).length} 项，${fixedIssues.filter(f => !f.autoFixed).length} 项需人工处理。`
         };
     }
 
-    removeAIPatterns(content) {
+    removeFatigueWords(content) {
+        const replacements = {
+            '然而': '',
+            '因此': '于是',
+            '所以': '就',
+            '但是': '可',
+            '仿佛': '好像',
+            '不禁': '忍不住',
+            '宛如': '好像',
+            '竟然': '居然',
+            '忽然': '突然',
+            '猛地': '用力'
+        };
+        
         let result = content;
-        result = result.replace(/然而[，,]/g, '但');
-        result = result.replace(/因此[，,]/g, '于是');
-        result = result.replace(/但是[，,]/g, '可');
-        result = result.replace(/所以[，,]/g, '就');
-        result = result.replace(/经过深思熟虑/g, '想了想');
-        result = result.replace(/众所周知/g, '都知道');
+        for (const [from, to] of Object.entries(replacements)) {
+            result = result.split(from).join(to);
+        }
         return result;
     }
 
-    addPadding(content) {
-        return content + '\n\n（此处情节继续发展中）';
-    }
-
-    shortenSentences(content) {
+    shortenLongSentences(content) {
         const sentences = content.split(/([。！？])/);
         const shortened = sentences.map(s => {
-            if (s.length > 80) {
-                return s.substring(0, 60) + '...' + s.substring(s.length - 20);
+            if (s.length > 100) {
+                const parts = s.split(/[,，]/);
+                if (parts.length > 2) {
+                    return parts.slice(0, Math.ceil(parts.length / 2)).join('，');
+                }
             }
             return s;
         });
         return shortened.join('');
     }
-}
 
+    expandContent(content) {
+        return content + '\n\n（情节继续发展中...）';
+    }
+
+    trimContent(content, description) {
+        const match = description.match(/(\d+)/g);
+        if (match) {
+            const targetLength = parseInt(match[match.length - 1]);
+            if (content.length > targetLength * 1.2) {
+                return content.substring(0, Math.ceil(targetLength * 1.1));
+            }
+        }
+        return content;
+    }
+
+    removeForbiddenPhrases(content, description) {
+        const forbidden = description.match(/「([^」]+)」/);
+        if (forbidden && forbidden[1]) {
+            const phrases = forbidden[1].split('、');
+            let result = content;
+            for (const phrase of phrases) {
+                result = result.split(phrase).join('[已修改]');
+            }
+            return result;
+        }
+        return content;
+    }
+
+    enhancePayoff(content) {
+        const payoffEnhancers = [
+            /（情节继续）/g,
+            /（故事发展）/g,
+            /（未完待续）/g
+        ];
+        
+        let result = content;
+        for (const enhancer of payoffEnhancers) {
+            result = result.replace(enhancer, '（高潮即将来临）');
+        }
+        
+        return result;
+    }
+}
 export default InkOSEngine;
